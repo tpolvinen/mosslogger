@@ -1,18 +1,34 @@
 #include <Controllino.h>
+#include <Wire.h>
+#include <Adafruit_ADS1015.h>
+
+
+Adafruit_ADS1115 ads0;
+Adafruit_ADS1115 ads1(0x49);
+
 
 void setup() {
-  pinMode(CONTROLLINO_D0, OUTPUT);
-  pinMode(CONTROLLINO_D1, OUTPUT);
-
+  Serial.begin(9600);
+  ads0.begin();
+  ads1.begin();
 }
 
 void loop() {
-  digitalWrite(CONTROLLINO_D0, HIGH);
-  delay(1000);
-  digitalWrite(CONTROLLINO_D0, LOW);
-  delay(10);
-  digitalWrite(CONTROLLINO_D1, HIGH);
-  delay(1000);
-  digitalWrite(CONTROLLINO_D1, LOW);
-  delay(10);
+
+  int16_t measurement0;
+  int16_t measurement1;
+  measurement0 = ads0.readADC_SingleEnded(0);
+  measurement1 = ads1.readADC_SingleEnded(0);
+
+  Serial.print("ads0: ");
+
+  Serial.println(measurement0);
+
+  Serial.print("ads1: ");
+
+  Serial.println(measurement1);
+
+  delay(500);
+
+
 }
