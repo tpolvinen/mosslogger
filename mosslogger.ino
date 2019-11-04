@@ -14,6 +14,7 @@ Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
 unsigned long previousMillis = 0;
+unsigned int counter = 0;
 
 int16_t measurement00;
 int16_t measurement01;
@@ -48,10 +49,11 @@ void setup() {
 }
 
 void loop() {
+
   previousMillis = millis();
-  for (int i = 0; i < 99; i++) {
+  //for (int i = 0; i < 99; i++) {
 
-
+  while (millis() - previousMillis <= 10000) {
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -71,14 +73,25 @@ void loop() {
     measurement31 = ads3.readADC_SingleEnded(1);
     measurement32 = ads3.readADC_SingleEnded(2);
     measurement33 = ads3.readADC_SingleEnded(3);
-
-// for 8 readings * 100, time is 7115 milliseconds
-// for 16 readings * 100, time is 14230 milliseconds
-
-
+    counter = counter + 16;
   }
-  unsigned long currentMillis = millis();
-  Serial.println(currentMillis - previousMillis);
+
+  Serial.print(counter);
+  Serial.println(" readings in 10 sec");
+
+  counter = 0;
+
+  // when 16 readings, 1120 readings in 10000 milliseconds
+
+  // for 8 readings * 100, time is 7115 milliseconds
+  // for 16 readings * 100, time is 14230 milliseconds
+
+
+  //}
+
+
+
+
   //  Serial.print("ads0:   ");
   //  Serial.print(measurement00);
   //  Serial.print("  ");
