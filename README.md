@@ -2,10 +2,10 @@
 Arduino based temperature data logger for moss experiment, with: Controllino MEGA, ADS1115, Micro SD Card Breakout Board, thermistors
 
 ## Step 1: 
-Using Controllino MEGA, implement Adafruit ADS1115 -with Adafruit LM4040- and get readings over I2C to serial monitor. Calculate (naive) averages over one second and how many measusement is read over that time. Instead of thermistors, using 10 kOhm resistors for stable output. No calculations to actual temperature readings at this point. Optionally, the calculations to degrees C will be implemented after all other functionalities are in place.
+Using Controllino MEGA, implement Adafruit ADS1115 and get readings over I2C to serial monitor. Calculate (naive) averages over one second and how many measusement is read over that time. Instead of thermistors, using 10 kOhm resistors for stable output. No calculations to actual temperature readings at this point. Optionally, the calculations to degrees C will be implemented after all other functionalities are in place.
 
 ## Step 2: 
-Testing four ADS1115s -and two LM4040s- together, using all 16 channels in single-ended reading. Implement statistics library to calculate the standard deviation of each ADS1115's measurements, taking in to account as many measurements as we can over one second period.
+Testing four ADS1115s together, using all 16 channels in single-ended reading. Implement statistics library to calculate the standard deviation of each ADS1115's measurements, taking in to account as many measurements as we can over one second period.
 
 ## Step 3: 
 Implementation of data logging with Adafruit Micro SD Card Breakout Board. When all measurement and data logging features are functional, change 10 kOhm resistors to thermistors.
