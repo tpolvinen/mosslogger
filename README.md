@@ -8,7 +8,7 @@ Using Controllino MEGA, implement Adafruit ADS1115 with Adafruit LM4040 and get 
 Testing four ADS1115s and two LM4040s together, using all 16 channels in single-ended reading. Implement statistics library to calculate the standard deviation of each ADS1115's measurements, taking in to account as many measurements as we can over one second period.
 
 ## Step 3: 
-Implementation of data logging with Adafruit Micro SD Card Breakout Board.
+Implementation of data logging with Adafruit Micro SD Card Breakout Board. When all measurement and data logging features are functional, change 10 kOhm resistors to thermistors.
 
 ## Step 4: 
 Optimize measurement frequency with data logging, keeping in mind the actual use case of one measurement data point per thermistor per second. Take care not to take too long with logging.
