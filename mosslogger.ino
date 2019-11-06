@@ -10,8 +10,8 @@ Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
 unsigned long previousMillis = 0;
-unsigned long missedMillis = 0;
-unsigned long measurementMillis = 0;
+//unsigned long missedMillis = 0;
+//unsigned long measurementMillis = 0;
 
 
 void setup() {
@@ -41,15 +41,15 @@ void setup() {
   ads2.begin();
   ads3.begin();
   
-  measurementMillis = millis();
+//  measurementMillis = millis();
 
 }
 
 void loop() {
   
-  Serial.print(millis() - measurementMillis);
-  Serial.println(" loop");
-  measurementMillis = millis();
+//  Serial.print(millis() - measurementMillis);
+//  Serial.println(" loop");
+//  measurementMillis = millis();
 
   int16_t counter = 0;
 
@@ -112,8 +112,8 @@ void loop() {
 
   //missedMillis = millis();
 
-  Serial.print(counter);
-  Serial.println(" rounds"); //, total readings: ");
+//  Serial.print(counter);
+//  Serial.println(" rounds"); //, total readings: ");
 
   oneSecondAverage00 /= counter;
   oneSecondAverage01 /= counter;
@@ -136,9 +136,9 @@ void loop() {
   oneSecondAverage33 /= counter;
 
 //  Printing these adds about 47 milliseconds in loop() processing time:
-//  Serial.print(oneSecondAverage00);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage01);
+  Serial.print(oneSecondAverage00);
+  Serial.print(",");
+  Serial.println(oneSecondAverage01);
 //  Serial.print(",");
 //  Serial.print(oneSecondAverage02);
 //  Serial.print(",");
@@ -179,7 +179,7 @@ void loop() {
 
 //  Serial.println();
 
-  counter = 0;
+//  counter = 0;
 
 //  oneSecondAverage00 = 0;
 //  oneSecondAverage01 = 0;
