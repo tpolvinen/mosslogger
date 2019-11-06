@@ -1,5 +1,7 @@
-// Getting readings with voltage from MEGA 5V pin
+// Super simple SD card logging 
 
+#include <SPI.h>
+#include <SD.h>
 #include <Controllino.h>
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
@@ -9,14 +11,35 @@ Adafruit_ADS1115 ads1(0x49);
 Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
-unsigned long previousMillis = 0;
-//unsigned long missedMillis = 0;
-//unsigned long measurementMillis = 0;
+// the digital pins that connect to the LEDs digitalWrite(CONTROLLINO_D0, HIGH);
+#define redLEDpin CONTROLLINO_D0
+#define greenLEDpin CONTROLLINO_D1
 
+unsigned long previousMillis = 0;
+
+// for the data logging shield, we use digital pin 10 for the SD cs line
+const int chipSelect = 53;
+
+// the logging file
+File logfile;
+
+void error(char *str)
+{
+  Serial.print("error: ");
+  Serial.println(str);
+  
+  // red LED indicates error
+  digitalWrite(redLEDpin, HIGH);
+
+  while(1);
+}
 
 void setup() {
 
   Serial.begin(9600);
+
+  pinMode(redLEDpin, OUTPUT);
+  pinMode(greenLEDpin, OUTPUT);
 
   // The ADC input range (or gain) can be changed via the following
   // functions, but be careful never to exceed VDD +0.3V max, or to
@@ -40,16 +63,43 @@ void setup() {
   ads1.begin();
   ads2.begin();
   ads3.begin();
+
+  // initialize the SD card
+  Serial.print("Initializing SD card...");
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
+  pinMode(53, OUTPUT);
   
-//  measurementMillis = millis();
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+    error("Card failed, or not present");
+  }
+  Serial.println("card initialized.");
+  
+  // create a new file
+  char filename[] = "LOGGER00.CSV";
+  for (uint8_t i = 0; i < 100; i++) {
+    filename[6] = i/10 + '0';
+    filename[7] = i%10 + '0';
+    if (! SD.exists(filename)) {
+      // only open a new file if it doesn't exist
+      logfile = SD.open(filename, FILE_WRITE); 
+      break;  // leave the loop!
+    }
+  }
+  
+  if (! logfile) {
+    error("couldnt create file");
+  }
+  
+  Serial.print("Logging to: ");
+  Serial.println(filename);
 
 }
 
 void loop() {
-  
-//  Serial.print(millis() - measurementMillis);
-//  Serial.println(" loop");
-//  measurementMillis = millis();
+
+  digitalWrite(greenLEDpin, HIGH);
 
   int16_t counter = 0;
 
@@ -64,8 +114,9 @@ void loop() {
   int16_t measurement30, measurement31, measurement32, measurement33;
 
   previousMillis = millis();
-  
 
+  Serial.println("Reading...");
+  
   while (millis() - previousMillis <= 1000) {
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
@@ -110,10 +161,7 @@ void loop() {
     counter = counter + 1;
   }
 
-  //missedMillis = millis();
-
-//  Serial.print(counter);
-//  Serial.println(" rounds"); //, total readings: ");
+  Serial.println("Calculating...");
 
   oneSecondAverage00 /= counter;
   oneSecondAverage01 /= counter;
@@ -135,78 +183,61 @@ void loop() {
   oneSecondAverage32 /= counter;
   oneSecondAverage33 /= counter;
 
-//  Printing these adds about 47 milliseconds in loop() processing time:
+  Serial.println("Writing...");
+
+  
+  
+  
+  
+
+  logfile.print(oneSecondAverage00);
   Serial.print(oneSecondAverage00);
+  logfile.print(",");
   Serial.print(",");
-  Serial.println(oneSecondAverage01);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage02);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage03);
-//  Serial.print(",");
-//
-//  Serial.print(oneSecondAverage10);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage11);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage12);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage13);
-//  Serial.print(",");
-//
-//  Serial.print(",");
-//
-//  Serial.print(oneSecondAverage20);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage21);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage22);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage23);
-//  Serial.print(",");
-//
-//  Serial.print(oneSecondAverage30);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage31);
-//  Serial.print(",");
-//  Serial.print(oneSecondAverage32);
-//  Serial.print(",");
-//  Serial.println(oneSecondAverage33);
+  logfile.print(oneSecondAverage01);
+  Serial.print(oneSecondAverage01);
+  logfile.print(",");
+  Serial.println("...");
+  logfile.print(oneSecondAverage02);
+  logfile.print(",");
+  logfile.print(oneSecondAverage03);
+  logfile.print(",");
 
-  //  Serial.print(",");
-  //  measurementMillis = millis() - measurementMillis;
-  //  Serial.print(measurementMillis);
+  logfile.print(oneSecondAverage10);
+  logfile.print(",");
+  logfile.print(oneSecondAverage11);
+  logfile.print(",");
+  logfile.print(oneSecondAverage12);
+  logfile.print(",");
+  logfile.print(oneSecondAverage13);
+  logfile.print(",");
 
-//  Serial.println();
+  logfile.print(oneSecondAverage20);
+  logfile.print(",");
+  logfile.print(oneSecondAverage21);
+  logfile.print(",");
+  logfile.print(oneSecondAverage22);
+  logfile.print(",");
+  logfile.print(oneSecondAverage23);
+  logfile.print(",");
 
-//  counter = 0;
+  logfile.print(oneSecondAverage30);
+  logfile.print(",");
+  logfile.print(oneSecondAverage31);
+  logfile.print(",");
+  logfile.print(oneSecondAverage32);
+  logfile.print(",");
+  logfile.println(oneSecondAverage33);
 
-//  oneSecondAverage00 = 0;
-//  oneSecondAverage01 = 0;
-//  oneSecondAverage02 = 0;
-//  oneSecondAverage03 = 0;
-//
-//  oneSecondAverage10 = 0;
-//  oneSecondAverage11 = 0;
-//  oneSecondAverage12 = 0;
-//  oneSecondAverage13 = 0;
-//
-//  oneSecondAverage20 = 0;
-//  oneSecondAverage21 = 0;
-//  oneSecondAverage22 = 0;
-//  oneSecondAverage23 = 0;
-//
-//  oneSecondAverage30 = 0;
-//  oneSecondAverage31 = 0;
-//  oneSecondAverage32 = 0;
-//  oneSecondAverage33 = 0;
+  digitalWrite(greenLEDpin, LOW);
 
-  //missedMillis = millis() - missedMillis;
+  // blink LED to show we are syncing data to the card & updating FAT!
+  digitalWrite(redLEDpin, HIGH);
+  logfile.flush();
+  digitalWrite(redLEDpin, LOW);
 
-  //  Serial.print("Missed milliseconds while printing and counting: ");
-  //  Serial.println(missedMillis);
+  Serial.println("Loop done.");
 
-  //missedMillis = 0;
 
   // in one second getting 7 rounds of readings, 128 milliseconds missed in printing and counting
 
