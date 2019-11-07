@@ -1,8 +1,8 @@
-// Super simple SD card logging 
+// Super simple SD card logging
 
 #include <SPI.h>
 #include <SD.h>
-#include <Controllino.h>
+#include <Controllino.h> // Usage of CONTROLLINO library allows you to use CONTROLLINO_xx aliases in your sketch.
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 
@@ -11,13 +11,12 @@ Adafruit_ADS1115 ads1(0x49);
 Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
-// the digital pins that connect to the LEDs digitalWrite(CONTROLLINO_D0, HIGH);
-#define redLEDpin CONTROLLINO_D0
-#define greenLEDpin CONTROLLINO_D1
+// the digital pins that connect to the LEDs, using e.g. digitalWrite(CONTROLLINO_D0, HIGH);
+#define readingLedPin CONTROLLINO_D0
+#define writingLedPin CONTROLLINO_D1
+#define errorLedPin CONTROLLINO_D2
 
-unsigned long previousMillis = 0;
-
-// for the data logging shield, we use digital pin 10 for the SD cs line
+// digital pin 53 for SD module's CS line
 const int chipSelect = 53;
 
 // the logging file
@@ -27,19 +26,26 @@ void error(char *str)
 {
   Serial.print("error: ");
   Serial.println(str);
-  
-  // red LED indicates error
-  digitalWrite(redLEDpin, HIGH);
 
-  while(1);
+  // error LED indicates error :D
+  digitalWrite(errorLedPin, HIGH);
+
+  while (1);
 }
 
 void setup() {
 
   Serial.begin(9600);
 
-  pinMode(redLEDpin, OUTPUT);
-  pinMode(greenLEDpin, OUTPUT);
+  while (!Serial) {
+    delay(10);
+  }
+
+  Controllino_RTC_init(0);
+
+  pinMode(readingLedPin, OUTPUT);
+  pinMode(writingLedPin, OUTPUT);
+  pinMode(errorLedPin, OUTPUT);
 
   // The ADC input range (or gain) can be changed via the following
   // functions, but be careful never to exceed VDD +0.3V max, or to
@@ -54,10 +60,10 @@ void setup() {
   // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.015625mV
   // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.0078125mV
 
-  ads0.setGain(GAIN_TWOTHIRDS);        // 1x gain   +/- 4.096V  1 bit = 0.125mV
-  ads1.setGain(GAIN_TWOTHIRDS);        // 1x gain   +/- 4.096V  1 bit = 0.125mV
-  ads2.setGain(GAIN_TWOTHIRDS);        // 1x gain   +/- 4.096V  1 bit = 0.125mV
-  ads3.setGain(GAIN_TWOTHIRDS);        // 1x gain   +/- 4.096V  1 bit = 0.125mV
+  ads0.setGain(GAIN_TWOTHIRDS);
+  ads1.setGain(GAIN_TWOTHIRDS);
+  ads2.setGain(GAIN_TWOTHIRDS);
+  ads3.setGain(GAIN_TWOTHIRDS);
 
   ads0.begin();
   ads1.begin();
@@ -69,29 +75,30 @@ void setup() {
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
   pinMode(53, OUTPUT);
-  
+
   // see if the card is present and can be initialized:
   if (!SD.begin(chipSelect)) {
     error("Card failed, or not present");
   }
-  Serial.println("card initialized.");
   
+  Serial.println("card initialized.");
+
   // create a new file
   char filename[] = "LOGGER00.CSV";
   for (uint8_t i = 0; i < 100; i++) {
-    filename[6] = i/10 + '0';
-    filename[7] = i%10 + '0';
+    filename[6] = i / 10 + '0';
+    filename[7] = i % 10 + '0';
     if (! SD.exists(filename)) {
       // only open a new file if it doesn't exist
-      logfile = SD.open(filename, FILE_WRITE); 
+      logfile = SD.open(filename, FILE_WRITE);
       break;  // leave the loop!
     }
   }
-  
+
   if (! logfile) {
     error("couldnt create file");
   }
-  
+
   Serial.print("Logging to: ");
   Serial.println(filename);
 
@@ -99,9 +106,15 @@ void setup() {
 
 void loop() {
 
-  digitalWrite(greenLEDpin, HIGH);
-
+  unsigned long loopMillis = 0;
+  unsigned long readingMillis = 0;
+  unsigned long calculatingMillis = 0;
+  unsigned long loggingMillis = 0;
+  unsigned long sdMillis = 0;
   int16_t counter = 0;
+  int n; //for Controllino RTC date and time, for writing the time to logfile
+
+  loopMillis = millis();
 
   long oneSecondAverage00 = 0, oneSecondAverage01 = 0, oneSecondAverage02 = 0, oneSecondAverage03 = 0;
   long oneSecondAverage10 = 0, oneSecondAverage11 = 0, oneSecondAverage12 = 0, oneSecondAverage13 = 0;
@@ -113,11 +126,11 @@ void loop() {
   int16_t measurement20, measurement21, measurement22, measurement23;
   int16_t measurement30, measurement31, measurement32, measurement33;
 
-  previousMillis = millis();
+  Serial.print("Reading,");
+  digitalWrite(readingLedPin, HIGH);
+  readingMillis = millis();
 
-  Serial.println("Reading...");
-  
-  while (millis() - previousMillis <= 1000) {
+  while (millis() - readingMillis <= 1000) {
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -159,9 +172,16 @@ void loop() {
     oneSecondAverage33 += measurement33;
 
     counter = counter + 1;
+
   }
 
-  Serial.println("Calculating...");
+  readingMillis = millis() - readingMillis;
+  Serial.print(readingMillis);
+  Serial.print(",");
+
+  Serial.print("Calculating,");
+
+  calculatingMillis = millis();
 
   oneSecondAverage00 /= counter;
   oneSecondAverage01 /= counter;
@@ -183,21 +203,31 @@ void loop() {
   oneSecondAverage32 /= counter;
   oneSecondAverage33 /= counter;
 
-  Serial.println("Writing...");
+  calculatingMillis = millis() - calculatingMillis;
+  Serial.print(calculatingMillis);
+  Serial.print(",");
 
-  
-  
-  
-  
+  Serial.print("Logfile writing,");
+
+  loggingMillis = millis();
+
+  char dateAndTimeData[20]; //space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
+  int thisYear = 2000 + Controllino_GetYear(); // because Controllino RTC library gives only two digits with Controllino_GetYear()
+  int thisMonth = Controllino_GetMonth();
+  int thisDay = Controllino_GetDay();
+  int thisHour = Controllino_GetHour();
+  int thisMinute = Controllino_GetMinute();
+  int thisSecond = Controllino_GetSecond();
+
+  sprintf(dateAndTimeData, ("%4d-%02d-%02dT%d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+
+  logfile.print(dateAndTimeData);
+  logfile.print(",");
 
   logfile.print(oneSecondAverage00);
-  Serial.print(oneSecondAverage00);
   logfile.print(",");
-  Serial.print(",");
   logfile.print(oneSecondAverage01);
-  Serial.print(oneSecondAverage01);
   logfile.print(",");
-  Serial.println("...");
   logfile.print(oneSecondAverage02);
   logfile.print(",");
   logfile.print(oneSecondAverage03);
@@ -229,21 +259,29 @@ void loop() {
   logfile.print(",");
   logfile.println(oneSecondAverage33);
 
-  digitalWrite(greenLEDpin, LOW);
+  loggingMillis = millis() - loggingMillis;
 
-  // blink LED to show we are syncing data to the card & updating FAT!
-  digitalWrite(redLEDpin, HIGH);
+  digitalWrite(readingLedPin, LOW);
+
+  Serial.print(loggingMillis);
+  Serial.print(",");
+
+  Serial.print("SD card writing,");
+  digitalWrite(writingLedPin, HIGH);
+
+  sdMillis = millis();
+
   logfile.flush();
-  digitalWrite(redLEDpin, LOW);
 
-  Serial.println("Loop done.");
+  sdMillis = millis() - sdMillis;
 
+  Serial.print(sdMillis);
+  Serial.print(",");
+  digitalWrite(writingLedPin, LOW);
 
-  // in one second getting 7 rounds of readings, 128 milliseconds missed in printing and counting
+  loopMillis = millis() - loopMillis;
 
-  // when 8 or 16 single-ended readings, 1120 readings in 10000 milliseconds
-
-  // for 8 single-ended readings * 100, time is 7115 milliseconds
-  // for 16 single-ended readings * 100, time is 14230 milliseconds
+  Serial.print("Loop done in,");
+  Serial.println(loopMillis);
 
 }
