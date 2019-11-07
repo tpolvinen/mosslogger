@@ -5,10 +5,10 @@ Arduino based temperature data logger for moss experiment, with: Controllino MEG
 Using Controllino MEGA, implement Adafruit ADS1115 and get readings over I2C to serial monitor. Calculate (naive) averages over one second and how many measusement is read over that time. Instead of thermistors, using 10 kOhm resistors for stable output. No calculations to actual temperature readings at this point. Optionally, the calculations to degrees C will be implemented after all other functionalities are in place.
 
 ## Step 2: 
-Testing four ADS1115s together, using all 16 channels in single-ended reading. Check that the voltage dividers work as expected: calculate Vout by hand, then calculate voltage from numbers produced by ADS1115s. Do they match? If, then: Implement statistics library to calculate the standard deviation of each ADS1115's set of per second measurements, taking in as many measurements as we can in time of one second.
+Testing four ADS1115s together, using all 16 channels in single-ended reading. Check that the voltage dividers work as expected: calculate Vout by hand, then calculate voltage from numbers produced by ADS1115s. Do they match?
 
 ## Step 3: 
-Implementation of data logging with Adafruit Micro SD Card Breakout Board. When all measurement and data logging features are functional, change 10 kOhm resistors to thermistors.
+Implementation of data logging with Adafruit Micro SD Card Breakout Board, optionally with two cards and SdFat library. When all measurement and data logging features are functional, change 10 kOhm resistors to potentiometers, then thermistors.
 
 ## Step 4: 
 Optimize measurement frequency with data logging, keeping in mind the actual use case of one measurement data point per thermistor per second. Take care not to take too long with logging.
@@ -18,6 +18,9 @@ Test differential readings against single-ended ones, preferably in the final su
 
 ## Optionally: 
 Implementation of calculations to convert data from ADS1115s to degrees C. Take care not to take too long with each calculation.
+
+## Optionally:
+Implement statistics library to calculate the standard deviation of each ADS1115's set of per second measurements, taking in as many measurements as we can in time of one second (this appears to be redundant since 4000 one-second-average readings have very small standard deviation, most under 1, reading values being over 12000)..
 
 ## Optionally:
 Implementation of system log, separate of data log.
