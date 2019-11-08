@@ -1,4 +1,4 @@
-// Super simple SD card logging
+// Super simple SD card logging, with relay controlled sensor and ADC on/off.
 
 #include <SPI.h>
 #include <SD.h>
@@ -16,22 +16,31 @@ Adafruit_ADS1115 ads3(0x4B);
 #define writingLedPin CONTROLLINO_D1
 #define errorLedPin CONTROLLINO_D2
 
-// digital pin 53 for SD module's CS line
-const int chipSelect = 53;
+// these control power to ACDs (ADS1115s), (may) need to shut down to avoid heating the samples measured
+// NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementLoop()
+// ...apparently shorting the current and ground through ADCs?!?
+#define currentRelay CONTROLLINO_R0
+#define groundRelay CONTROLLINO_R1
 
-// the logging file
+const int chipSelect = 53; // digital pin 53 for SD module's CS line
+
+char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
+
+bool measuring; // This is used with millis() timing to control relay that connects power to ACDs (ADS1115s)
+
+unsigned long startMillis = 0;
+unsigned long currentMillis = 0;
+
+unsigned long hammerTime = 10000; // You can't touch this.
+unsigned long shutDownTime = 10000;
+
+unsigned long measurementRoundMillis = 1000; // How long to loop through ADCs reading values in, before calculating the averages and flushing the new data to the file on SD card.
+
 File logfile;
 
-void error(char *str)
-{
-  Serial.print("error: ");
-  Serial.println(str);
 
-  // error LED indicates error :D
-  digitalWrite(errorLedPin, HIGH);
 
-  while (1);
-}
+
 
 void setup() {
 
@@ -46,6 +55,9 @@ void setup() {
   pinMode(readingLedPin, OUTPUT);
   pinMode(writingLedPin, OUTPUT);
   pinMode(errorLedPin, OUTPUT);
+
+  pinMode(currentRelay, OUTPUT);
+  pinMode(groundRelay, OUTPUT);
 
   // The ADC input range (or gain) can be changed via the following
   // functions, but be careful never to exceed VDD +0.3V max, or to
@@ -70,6 +82,8 @@ void setup() {
   ads2.begin();
   ads3.begin();
 
+  delay(100);
+
   // initialize the SD card
   Serial.print("Initializing SD card...");
   // make sure that the default chip select pin is set to
@@ -80,7 +94,7 @@ void setup() {
   if (!SD.begin(chipSelect)) {
     error("Card failed, or not present");
   }
-  
+
   Serial.println("card initialized.");
 
   // create a new file
@@ -102,9 +116,59 @@ void setup() {
   Serial.print("Logging to: ");
   Serial.println(filename);
 
+  measuring = true;
+  digitalWrite(currentRelay, HIGH);
+  digitalWrite(groundRelay, HIGH);
+  startMillis = millis();
+
+}
+
+void error(char *str) {
+  Serial.print("error: ");
+  Serial.println(str);
+  digitalWrite(errorLedPin, HIGH); // error LED indicates error :D
+  while (1);
+}
+
+void getTimeAndDate() {
+  int thisYear = 2000 + Controllino_GetYear(); // "2000 +" because Controllino RTC library gives only two digits with Controllino_GetYear()
+  int thisMonth = Controllino_GetMonth();
+  int thisDay = Controllino_GetDay();
+  int thisHour = Controllino_GetHour();
+  int thisMinute = Controllino_GetMinute();
+  int thisSecond = Controllino_GetSecond();
+
+  sprintf(dateAndTimeData, ("%4d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+
 }
 
 void loop() {
+  currentMillis = millis();
+
+  if (measuring) {
+    if (currentMillis - startMillis >= hammerTime) {
+      digitalWrite(currentRelay, LOW);
+      digitalWrite(groundRelay, LOW);
+      measuring = false;
+      Serial.println("Moving from hammerTime to shutDownTime!");
+      startMillis = millis();
+    } else {
+      measurementLoop();
+    }
+  } else {
+    if (currentMillis - startMillis >= shutDownTime) {
+      digitalWrite(currentRelay, HIGH);
+      digitalWrite(groundRelay, HIGH);
+      measuring = true;
+      Serial.println("Moving from shutDownTime to hammerTime!");
+      startMillis = millis();
+    } else {
+      //delay(100); // do nothing, wait
+    }
+  }
+}
+
+void measurementLoop() {
 
   unsigned long loopMillis = 0;
   unsigned long readingMillis = 0;
@@ -112,14 +176,13 @@ void loop() {
   unsigned long loggingMillis = 0;
   unsigned long sdMillis = 0;
   int16_t counter = 0;
-  int n; //for Controllino RTC date and time, for writing the time to logfile
 
   loopMillis = millis();
 
-  long oneSecondAverage00 = 0, oneSecondAverage01 = 0, oneSecondAverage02 = 0, oneSecondAverage03 = 0;
-  long oneSecondAverage10 = 0, oneSecondAverage11 = 0, oneSecondAverage12 = 0, oneSecondAverage13 = 0;
-  long oneSecondAverage20 = 0, oneSecondAverage21 = 0, oneSecondAverage22 = 0, oneSecondAverage23 = 0;
-  long oneSecondAverage30 = 0, oneSecondAverage31 = 0, oneSecondAverage32 = 0, oneSecondAverage33 = 0;
+  long measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRoundAverage02 = 0, measurementRoundAverage03 = 0;
+  long measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
+  long measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
+  long measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
 
   int16_t measurement00, measurement01, measurement02, measurement03;
   int16_t measurement10, measurement11, measurement12, measurement13;
@@ -130,7 +193,9 @@ void loop() {
   digitalWrite(readingLedPin, HIGH);
   readingMillis = millis();
 
-  while (millis() - readingMillis <= 1000) {
+  getTimeAndDate(); //store date and time before taking measurements/reading ACDs, will be printed to logfile along the values measured
+
+  while (millis() - readingMillis <= measurementRoundMillis) {
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -151,25 +216,25 @@ void loop() {
     measurement32 = ads3.readADC_SingleEnded(2);
     measurement33 = ads3.readADC_SingleEnded(3);
 
-    oneSecondAverage00 += measurement00;
-    oneSecondAverage01 += measurement01;
-    oneSecondAverage02 += measurement02;
-    oneSecondAverage03 += measurement03;
+    measurementRoundAverage00 += measurement00;
+    measurementRoundAverage01 += measurement01;
+    measurementRoundAverage02 += measurement02;
+    measurementRoundAverage03 += measurement03;
 
-    oneSecondAverage10 += measurement10;
-    oneSecondAverage11 += measurement11;
-    oneSecondAverage12 += measurement12;
-    oneSecondAverage13 += measurement13;
+    measurementRoundAverage10 += measurement10;
+    measurementRoundAverage11 += measurement11;
+    measurementRoundAverage12 += measurement12;
+    measurementRoundAverage13 += measurement13;
 
-    oneSecondAverage20 += measurement20;
-    oneSecondAverage21 += measurement21;
-    oneSecondAverage22 += measurement22;
-    oneSecondAverage23 += measurement23;
+    measurementRoundAverage20 += measurement20;
+    measurementRoundAverage21 += measurement21;
+    measurementRoundAverage22 += measurement22;
+    measurementRoundAverage23 += measurement23;
 
-    oneSecondAverage30 += measurement30;
-    oneSecondAverage31 += measurement31;
-    oneSecondAverage32 += measurement32;
-    oneSecondAverage33 += measurement33;
+    measurementRoundAverage30 += measurement30;
+    measurementRoundAverage31 += measurement31;
+    measurementRoundAverage32 += measurement32;
+    measurementRoundAverage33 += measurement33;
 
     counter = counter + 1;
 
@@ -183,25 +248,25 @@ void loop() {
 
   calculatingMillis = millis();
 
-  oneSecondAverage00 /= counter;
-  oneSecondAverage01 /= counter;
-  oneSecondAverage02 /= counter;
-  oneSecondAverage03 /= counter;
+  measurementRoundAverage00 /= counter;
+  measurementRoundAverage01 /= counter;
+  measurementRoundAverage02 /= counter;
+  measurementRoundAverage03 /= counter;
 
-  oneSecondAverage10 /= counter;
-  oneSecondAverage11 /= counter;
-  oneSecondAverage12 /= counter;
-  oneSecondAverage13 /= counter;
+  measurementRoundAverage10 /= counter;
+  measurementRoundAverage11 /= counter;
+  measurementRoundAverage12 /= counter;
+  measurementRoundAverage13 /= counter;
 
-  oneSecondAverage20 /= counter;
-  oneSecondAverage21 /= counter;
-  oneSecondAverage22 /= counter;
-  oneSecondAverage23 /= counter;
+  measurementRoundAverage20 /= counter;
+  measurementRoundAverage21 /= counter;
+  measurementRoundAverage22 /= counter;
+  measurementRoundAverage23 /= counter;
 
-  oneSecondAverage30 /= counter;
-  oneSecondAverage31 /= counter;
-  oneSecondAverage32 /= counter;
-  oneSecondAverage33 /= counter;
+  measurementRoundAverage30 /= counter;
+  measurementRoundAverage31 /= counter;
+  measurementRoundAverage32 /= counter;
+  measurementRoundAverage33 /= counter;
 
   calculatingMillis = millis() - calculatingMillis;
   Serial.print(calculatingMillis);
@@ -211,53 +276,44 @@ void loop() {
 
   loggingMillis = millis();
 
-  char dateAndTimeData[20]; //space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
-  int thisYear = 2000 + Controllino_GetYear(); // because Controllino RTC library gives only two digits with Controllino_GetYear()
-  int thisMonth = Controllino_GetMonth();
-  int thisDay = Controllino_GetDay();
-  int thisHour = Controllino_GetHour();
-  int thisMinute = Controllino_GetMinute();
-  int thisSecond = Controllino_GetSecond();
-
-  sprintf(dateAndTimeData, ("%4d-%02d-%02dT%d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
-
   logfile.print(dateAndTimeData);
+
   logfile.print(",");
 
-  logfile.print(oneSecondAverage00);
+  logfile.print(measurementRoundAverage00);
   logfile.print(",");
-  logfile.print(oneSecondAverage01);
+  logfile.print(measurementRoundAverage01);
   logfile.print(",");
-  logfile.print(oneSecondAverage02);
+  logfile.print(measurementRoundAverage02);
   logfile.print(",");
-  logfile.print(oneSecondAverage03);
-  logfile.print(",");
-
-  logfile.print(oneSecondAverage10);
-  logfile.print(",");
-  logfile.print(oneSecondAverage11);
-  logfile.print(",");
-  logfile.print(oneSecondAverage12);
-  logfile.print(",");
-  logfile.print(oneSecondAverage13);
+  logfile.print(measurementRoundAverage03);
   logfile.print(",");
 
-  logfile.print(oneSecondAverage20);
+  logfile.print(measurementRoundAverage10);
   logfile.print(",");
-  logfile.print(oneSecondAverage21);
+  logfile.print(measurementRoundAverage11);
   logfile.print(",");
-  logfile.print(oneSecondAverage22);
+  logfile.print(measurementRoundAverage12);
   logfile.print(",");
-  logfile.print(oneSecondAverage23);
+  logfile.print(measurementRoundAverage13);
   logfile.print(",");
 
-  logfile.print(oneSecondAverage30);
+  logfile.print(measurementRoundAverage20);
   logfile.print(",");
-  logfile.print(oneSecondAverage31);
+  logfile.print(measurementRoundAverage21);
   logfile.print(",");
-  logfile.print(oneSecondAverage32);
+  logfile.print(measurementRoundAverage22);
   logfile.print(",");
-  logfile.println(oneSecondAverage33);
+  logfile.print(measurementRoundAverage23);
+  logfile.print(",");
+
+  logfile.print(measurementRoundAverage30);
+  logfile.print(",");
+  logfile.print(measurementRoundAverage31);
+  logfile.print(",");
+  logfile.print(measurementRoundAverage32);
+  logfile.print(",");
+  logfile.println(measurementRoundAverage33);
 
   loggingMillis = millis() - loggingMillis;
 
