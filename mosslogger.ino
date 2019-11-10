@@ -1,10 +1,19 @@
 // Super simple SD card logging, with relay controlled sensor and ADC on/off.
 
 #include <SPI.h>
-#include <SD.h>
+// #include <SD.h>
 #include <Controllino.h> // Usage of CONTROLLINO library allows you to use CONTROLLINO_xx aliases in your sketch.
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
+
+// include SdFat library w/ Arduino IDE gives these
+#include <SdFatConfig.h>
+#include <sdios.h>
+#include <FreeStack.h>
+#include <MinimumSerial.h>
+#include <SdFat.h>
+#include <BlockDriver.h>
+#include <SysCall.h>
 
 Adafruit_ADS1115 ads0(0x48);
 Adafruit_ADS1115 ads1(0x49);
@@ -12,31 +21,62 @@ Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
 // the digital pins that connect to the LEDs, using e.g. digitalWrite(CONTROLLINO_D0, HIGH);
-#define readingLedPin CONTROLLINO_D0
-#define writingLedPin CONTROLLINO_D1
-#define errorLedPin CONTROLLINO_D2
+// CONTROLLINO_D0 is used for SD2_CS (pin 2 on Arduino MEGA)
+#define readingLedPin CONTROLLINO_D1
+#define writingLedPin CONTROLLINO_D2
+#define errorLedPin CONTROLLINO_D3
 
-// these control power to ACDs (ADS1115s), (may) need to shut down to avoid heating the samples measured
-// NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementLoop()
+// these control power to ACDs (ADS1115s), (may) need to shut down to avoid heating the samples with thermistors
+// NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementRound()
 // ...apparently shorting the current and ground through ADCs?!?
 #define currentRelay CONTROLLINO_R0
 #define groundRelay CONTROLLINO_R1
 
-const int chipSelect = 53; // digital pin 53 for SD module's CS line
+// const int chipSelect = 53; // digital pin 53 for SD module's CS line
 
+SdFat sd1;
+const uint8_t SD1_CS = 53;  // chip select for sd1
+
+SdFat sd2;
+const uint8_t SD2_CS = 2;   // chip select for sd2 // CONTROLLINO_D0 = pin 2 on Arduino MEGA
+
+const uint8_t BUF_DIM = 100;
+uint8_t buf[BUF_DIM];
+
+const uint32_t FILE_SIZE = 1000000;
+const uint16_t NWRITE = FILE_SIZE/BUF_DIM;
+//------------------------------------------------------------------------------
+// print error msg, any SD error codes, and halt.
+// store messages in flash
+#define errorExit(msg) errorHalt(F(msg))
+#define initError(msg) initErrorHalt(F(msg))
+//------------------------------------------------------------------------------
+
+// These are used in getTimeAndDate()
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
+ thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getTimeAndDate()
+uint8_t thisMonth; // = Controllino_GetMonth();
+uint8_t thisDay; // = Controllino_GetDay();
+uint8_t thisHour; // = Controllino_GetHour();
+uint8_t thisMinute; // = Controllino_GetMinute();
+uint8_t thisSecond; // = Controllino_GetSecond();
+
+uint8_t loopCounterForLog; // Used to keep track of loop() iterations, to check the need for a new log file at intervals (not sure if sane!)
+File logfile;
+bool needsNewLogFile; // Used to mark the need for a new log file when the time period for one log file has been used up
+uint8_t logFileChangeOverTimeUnit; // when this time int value changes, as many times as logFileKeepCounter, new log file is started
+const uint8_t logFileKeepCounter = 1; // How many RTC's time units to use one logfile for (as in year, month, day, hour, minute, second)
+uint8_t previousLogFileTime = 0; // Stores the value of current RTC time unit
 
 bool measuring; // This is used with millis() timing to control relay that connects power to ACDs (ADS1115s)
 
 unsigned long startMillis = 0;
 unsigned long currentMillis = 0;
 
-unsigned long hammerTime = 10000; // You can't touch this.
-unsigned long shutDownTime = 10000;
+const unsigned long hammerTime = 10000; // You can't touch this.
+const unsigned long shutDownTime = 10000;
 
-unsigned long measurementRoundMillis = 1000; // How long to loop through ADCs reading values in, before calculating the averages and flushing the new data to the file on SD card.
-
-File logfile;
+const unsigned long measurementRoundMillis = 1000; // How long to loop through ADCs reading values in, before calculating the averages and flushing the new data to the file on SD card.
 
 
 
@@ -46,11 +86,17 @@ void setup() {
 
   Serial.begin(9600);
 
+  // Wait for USB Serial 
   while (!Serial) {
-    delay(10);
+    SysCall::yield();
   }
+  
+  twoCardsTest();
 
   Controllino_RTC_init(0);
+
+  getTimeAndDate();
+  logFileChangeOverTimeUnit = thisDay;  // THIS JUST PLAIN DOES NOT WORK! Think again tomorrow. :)
 
   pinMode(readingLedPin, OUTPUT);
   pinMode(writingLedPin, OUTPUT);
@@ -82,7 +128,23 @@ void setup() {
   ads2.begin();
   ads3.begin();
 
-  delay(100);
+  initializeSdCard();
+
+  measuring = true;
+  digitalWrite(currentRelay, HIGH);
+  digitalWrite(groundRelay, HIGH);
+  startMillis = millis();
+
+}
+
+void error(char *str) {
+  Serial.print("error: ");
+  Serial.println(str);
+  digitalWrite(errorLedPin, HIGH); // error LED indicates error :D
+  while (1);
+}
+
+void initializeSdCard() {
 
   // initialize the SD card
   Serial.print("Initializing SD card...");
@@ -115,45 +177,46 @@ void setup() {
 
   Serial.print("Logging to: ");
   Serial.println(filename);
-
-  measuring = true;
-  digitalWrite(currentRelay, HIGH);
-  digitalWrite(groundRelay, HIGH);
-  startMillis = millis();
-
-}
-
-void error(char *str) {
-  Serial.print("error: ");
-  Serial.println(str);
-  digitalWrite(errorLedPin, HIGH); // error LED indicates error :D
-  while (1);
 }
 
 void getTimeAndDate() {
-  int thisYear = 2000 + Controllino_GetYear(); // "2000 +" because Controllino RTC library gives only two digits with Controllino_GetYear()
-  int thisMonth = Controllino_GetMonth();
-  int thisDay = Controllino_GetDay();
-  int thisHour = Controllino_GetHour();
-  int thisMinute = Controllino_GetMinute();
-  int thisSecond = Controllino_GetSecond();
+  thisYear = 2000 + Controllino_GetYear(); // "2000 +" because Controllino RTC library gives only two digits with Controllino_GetYear()
+  thisMonth = Controllino_GetMonth();
+  thisDay = Controllino_GetDay();
+  thisHour = Controllino_GetHour();
+  thisMinute = Controllino_GetMinute();
+  thisSecond = Controllino_GetSecond();
 
   sprintf(dateAndTimeData, ("%4d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
 
 }
 
+checkNeedForNewLogFile() {
+  
+}
+
+newLogFile() {
+
+}
+
+
+
 void loop() {
+
   currentMillis = millis();
 
   if (measuring) {
-    if (currentMillis - startMillis >= hammerTime) {
+    if (currentMillis - startMillis >= hammerTime) { // check if the time for measurement rounds is elapsed
       digitalWrite(currentRelay, LOW);
       digitalWrite(groundRelay, LOW);
       measuring = false;
       Serial.println("Moving from hammerTime to shutDownTime!");
       startMillis = millis();
     } else {
-      measurementLoop();
+      measurementRound();
+      if (needsNewLogFile) {
+        newLogFile();
+      }
     }
   } else {
     if (currentMillis - startMillis >= shutDownTime) {
@@ -162,20 +225,29 @@ void loop() {
       measuring = true;
       Serial.println("Moving from shutDownTime to hammerTime!");
       startMillis = millis();
-    } else {
-      //delay(100); // do nothing, wait
     }
   }
+
+  loopCounterForLog++;
+
+  if (loopCounter <= loopNumberForLog) {
+    checkNeedForNewLogFile();
+    if (needsNewLogFile) {
+      newLogFile();
+    }
+    loopCounter = 0;
+  }
+
 }
 
-void measurementLoop() {
+void measurementRound() { //Could probably take time and date char array as parameter?
 
   unsigned long loopMillis = 0;
   unsigned long readingMillis = 0;
   unsigned long calculatingMillis = 0;
   unsigned long loggingMillis = 0;
   unsigned long sdMillis = 0;
-  int16_t counter = 0;
+  int16_t readingRoundCounter = 0;
 
   loopMillis = millis();
 
@@ -236,7 +308,7 @@ void measurementLoop() {
     measurementRoundAverage32 += measurement32;
     measurementRoundAverage33 += measurement33;
 
-    counter = counter + 1;
+    readingRoundCounter++;
 
   }
 
@@ -248,25 +320,25 @@ void measurementLoop() {
 
   calculatingMillis = millis();
 
-  measurementRoundAverage00 /= counter;
-  measurementRoundAverage01 /= counter;
-  measurementRoundAverage02 /= counter;
-  measurementRoundAverage03 /= counter;
+  measurementRoundAverage00 /= readingRoundCounter;
+  measurementRoundAverage01 /= readingRoundCounter;
+  measurementRoundAverage02 /= readingRoundCounter;
+  measurementRoundAverage03 /= readingRoundCounter;
 
-  measurementRoundAverage10 /= counter;
-  measurementRoundAverage11 /= counter;
-  measurementRoundAverage12 /= counter;
-  measurementRoundAverage13 /= counter;
+  measurementRoundAverage10 /= readingRoundCounter;
+  measurementRoundAverage11 /= readingRoundCounter;
+  measurementRoundAverage12 /= readingRoundCounter;
+  measurementRoundAverage13 /= readingRoundCounter;
 
-  measurementRoundAverage20 /= counter;
-  measurementRoundAverage21 /= counter;
-  measurementRoundAverage22 /= counter;
-  measurementRoundAverage23 /= counter;
+  measurementRoundAverage20 /= readingRoundCounter;
+  measurementRoundAverage21 /= readingRoundCounter;
+  measurementRoundAverage22 /= readingRoundCounter;
+  measurementRoundAverage23 /= readingRoundCounter;
 
-  measurementRoundAverage30 /= counter;
-  measurementRoundAverage31 /= counter;
-  measurementRoundAverage32 /= counter;
-  measurementRoundAverage33 /= counter;
+  measurementRoundAverage30 /= readingRoundCounter;
+  measurementRoundAverage31 /= readingRoundCounter;
+  measurementRoundAverage32 /= readingRoundCounter;
+  measurementRoundAverage33 /= readingRoundCounter;
 
   calculatingMillis = millis() - calculatingMillis;
   Serial.print(calculatingMillis);
@@ -339,5 +411,149 @@ void measurementLoop() {
 
   Serial.print("Loop done in,");
   Serial.println(loopMillis);
+
+}
+
+
+
+
+
+twoCardsTest() {
+  Serial.print(F("FreeStack: "));
+
+  Serial.println(FreeStack());
+
+  // fill buffer with known data
+  for (size_t i = 0; i < sizeof(buf); i++) {
+    buf[i] = i;
+  }
+
+  Serial.println(F("type any character to start"));
+  while (!Serial.available()) {
+    SysCall::yield();
+  }
+
+  // disable sd2 while initializing sd1
+  pinMode(SD2_CS, OUTPUT);
+  digitalWrite(SD2_CS, HIGH);
+
+  // initialize the first card
+  if (!sd1.begin(SD1_CS)) {
+    sd1.initError("sd1:");
+  }
+  // create Dir1 on sd1 if it does not exist
+  if (!sd1.exists("/Dir1")) {
+    if (!sd1.mkdir("/Dir1")) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+  // initialize the second card
+  if (!sd2.begin(SD2_CS)) {
+    sd2.initError("sd2:");
+  }
+// create Dir2 on sd2 if it does not exist
+  if (!sd2.exists("/Dir2")) {
+    if (!sd2.mkdir("/Dir2")) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+  // list root directory on both cards
+  Serial.println(F("------sd1 root-------"));
+  sd1.ls();
+  Serial.println(F("------sd2 root-------"));
+  sd2.ls();
+
+  // make /Dir1 the default directory for sd1
+  if (!sd1.chdir("/Dir1")) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  // make /Dir2 the default directory for sd2
+  if (!sd2.chdir("/Dir2")) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  // list current directory on both cards
+  Serial.println(F("------sd1 Dir1-------"));
+  sd1.ls();
+  Serial.println(F("------sd2 Dir2-------"));
+  sd2.ls();
+  Serial.println(F("---------------------"));
+
+  // remove rename.bin from /Dir2 directory of sd2
+  if (sd2.exists("rename.bin")) {
+    if (!sd2.remove("rename.bin")) {
+      sd2.errorExit("remove rename.bin");
+    }
+  }
+  // set the current working directory for open() to sd1
+  sd1.chvol();
+
+  // create or open /Dir1/test.bin and truncate it to zero length
+  SdFile file1;
+  if (!file1.open("test.bin", O_RDWR | O_CREAT | O_TRUNC)) {
+    sd1.errorExit("file1");
+  }
+  Serial.println(F("Writing test.bin to sd1"));
+
+  // write data to /Dir1/test.bin on sd1
+  for (uint16_t i = 0; i < NWRITE; i++) {
+    if (file1.write(buf, sizeof(buf)) != sizeof(buf)) {
+      sd1.errorExit("sd1.write");
+    }
+  }
+  // set the current working directory for open() to sd2
+  sd2.chvol();
+
+  // create or open /Dir2/copy.bin and truncate it to zero length
+  SdFile file2;
+  if (!file2.open("copy.bin", O_WRONLY | O_CREAT | O_TRUNC)) {
+    sd2.errorExit("file2");
+  }
+  Serial.println(F("Copying test.bin to copy.bin"));
+
+  // copy file1 to file2
+  file1.rewind();
+  uint32_t t = millis();
+
+  while (1) {
+    int n = file1.read(buf, sizeof(buf));
+    if (n < 0) {
+      sd1.errorExit("read1");
+    }
+    if (n == 0) {
+      break;
+    }
+    if ((int)file2.write(buf, n) != n) {
+      sd2.errorExit("write2");
+    }
+  }
+  t = millis() - t;
+  Serial.print(F("File size: "));
+  Serial.println(file2.fileSize());
+  Serial.print(F("Copy time: "));
+  Serial.print(t);
+  Serial.println(F(" millis"));
+  // close test.bin
+  file1.close();
+  file2.close(); 
+  // list current directory on both cards
+  Serial.println(F("------sd1 -------"));
+  sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
+  Serial.println(F("------sd2 -------"));
+  sd2.ls("/", LS_R | LS_DATE | LS_SIZE);
+  Serial.println(F("---------------------"));
+  Serial.println(F("Renaming copy.bin"));
+  // rename the copy
+  if (!sd2.rename("copy.bin", "rename.bin")) {
+    sd2.errorExit("sd2.rename");
+  }
+  // list current directory on both cards
+  Serial.println(F("------sd1 -------"));
+  sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
+  Serial.println(F("------sd2 -------"));
+  sd2.ls("/", LS_R | LS_DATE | LS_SIZE);
+  Serial.println(F("---------------------"));
+  Serial.println(F("Done"));
 
 }
