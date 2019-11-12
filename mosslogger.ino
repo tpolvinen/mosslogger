@@ -1,7 +1,9 @@
 // Super simple SD card logging, with relay controlled sensor and ADC on/off.
+// With normal SD.h library and one SD card, readings saved only 173.2 kB, from 2019-11-08T20:38:23 to 2019-11-08T21:28:17
+
 
 #include <SPI.h>
-// #include <SD.h>
+ #include <SD.h>
 #include <Controllino.h> // Usage of CONTROLLINO library allows you to use CONTROLLINO_xx aliases in your sketch.
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
@@ -54,7 +56,7 @@ const uint16_t NWRITE = FILE_SIZE/BUF_DIM;
 
 // These are used in getTimeAndDate()
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
- thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getTimeAndDate()
+uint8_t thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getTimeAndDate()
 uint8_t thisMonth; // = Controllino_GetMonth();
 uint8_t thisDay; // = Controllino_GetDay();
 uint8_t thisHour; // = Controllino_GetHour();
@@ -191,11 +193,11 @@ void getTimeAndDate() {
 
 }
 
-checkNeedForNewLogFile() {
+void checkNeedForNewLogFile() {
   
 }
 
-newLogFile() {
+void newLogFile() {
 
 }
 
@@ -418,7 +420,7 @@ void measurementRound() { //Could probably take time and date char array as para
 
 
 
-twoCardsTest() {
+void twoCardsTest() {
   Serial.print(F("FreeStack: "));
 
   Serial.println(FreeStack());
