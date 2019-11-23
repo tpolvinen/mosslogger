@@ -22,23 +22,13 @@ Adafruit_ADS1115 ads1(0x49);
 Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
-// the digital pins that connect to the LEDs, using e.g. digitalWrite(CONTROLLINO_D0, HIGH);
-// CONTROLLINO_D0 is used for SD2_CS (pin 2 on Arduino MEGA)
-#define readingLedPin CONTROLLINO_D1
-#define writingLedPin CONTROLLINO_D2
-#define errorLedPin CONTROLLINO_D3
-
-// these control power to ACDs (ADS1115s), (may) need to shut down to avoid heating the samples with thermistors
+// these control power to ACDs (ADS1115s), need to shut down to avoid heating the samples with thermistors
 // NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementRound()
-// ...apparently shorting the current and ground through ADCs?!?
 #define currentRelay CONTROLLINO_R0
 #define groundRelay CONTROLLINO_R1
 
-// const int chipSelect = 53; // digital pin 53 for SD module's CS line
-
 SdFat sd1;
 const uint8_t SD1_CS = 53;  // chip select for sd1
-
 SdFat sd2;
 const uint8_t SD2_CS = 7;   // chip select for sd2 // CONTROLLINO_D5 = pin 7 on Arduino MEGA
 
@@ -67,15 +57,29 @@ uint8_t logSecond; // = Controllino_GetSecond();
 File logfile1;
 File logfile2;
 
-uint8_t previousLogFileDay = 0; // Stores the value of RTC day when logFile was started, i.e. current day.
+// uint8_t previousLogFileDay = 0; // Stores the value of RTC day when logFile was started, i.e. current day.
 
-unsigned long startMillis = 0;
-unsigned long currentMillis = 0;
+// unsigned long startMillis = 0;
+// unsigned long currentMillis = 0;
 
-const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep making measurement rounds
+unsigned long startShutDownPeriod = 0;
+
+//const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep making measurement rounds
 const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to power off ADCs between measurement periods
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages and writing the new data to the file on SD card.
+
+//void error(char *str) {
+//  Serial.print("error: ");
+//  Serial.println(str);
+//  while (1);
+//}
+//------------------------------------------------------------------------------
+// print error msg, any SD error codes, and halt.
+// store messages in flash
+#define errorExit(msg) errorHalt(F(msg))
+#define initError(msg) initErrorHalt(F(msg))
+//------------------------------------------------------------------------------
 
 void getTimeAndDate() {
   thisYear = 2000 + Controllino_GetYear(); // "2000 +" because Controllino RTC library gives only two digits with Controllino_GetYear()
@@ -88,14 +92,17 @@ void getTimeAndDate() {
   sprintf(dateAndTimeData, ("%4d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
 }
 
-void error(char *str) {
-  Serial.print("error: ");
-  Serial.println(str);
-  digitalWrite(errorLedPin, HIGH); // error LED indicates error :D
-  while (1);
+void getLogFileName() {
+  // char logfileName[13]; // space for DDHHMMSS.csv, plus the null char terminator
+  logDay = Controllino_GetDay();
+  logHour = Controllino_GetHour();
+  logMinute = Controllino_GetMinute();
+  logSecond = Controllino_GetSecond();
+
+  sprintf(logfileName, ("%02d%02d%02d%02d.csv"), logDay, logHour, logMinute, logSecond);
 }
 
-void  initializeADCs() {
+void initializeADCs() {
   // The ADC input range (or gain) can be changed via the following
   // functions, but be careful never to exceed VDD +0.3V max, or to
   // exceed the upper and lower limits if you adjust the input range!
@@ -120,19 +127,13 @@ void  initializeADCs() {
   ads3.begin();
 }
 
-void getLogFileName() {
-  // char logfileName[13]; // space for DDHHMMSS.csv, plus the null char terminator
-  logDay = Controllino_GetDay();
-  logHour = Controllino_GetHour();
-  logMinute = Controllino_GetMinute();
-  logSecond = Controllino_GetSecond();
-
-  sprintf(logfileName, ("%02d%02d%02d%02d.csv"), logDay, logHour, logMinute, logSecond);
-}
-
 void initializeSdCards() {
 
-  // initialize the SD card
+  // disable sd2 while initializing sd1
+  pinMode(SD2_CS, OUTPUT);
+  digitalWrite(SD2_CS, HIGH);
+
+  // initialize sd1
   Serial.print("Initializing SD card 1...");
   // make sure that the default chip select pin is set to
   // output, even if you don't use it:
@@ -140,99 +141,52 @@ void initializeSdCards() {
 
   // see if the card is present and can be initialized:
   if (!sd1.begin(SD1_CS)) {
-    error("Card failed, or not present");
+    sd1.initError("sd1:");
+    //error("Card 1 failed, or not present");
   }
 
-  Serial.println("card initialized.");
+  Serial.println("Card 1 initialized.");
 
-  // create a new file
-  //  char filename[] = "LOGGER00.CSV";
-  //  for (uint8_t i = 0; i < 100; i++) {
-  //    filename[6] = i / 10 + '0';
-  //    filename[7] = i % 10 + '0';
+  // initialize sd2
+  Serial.print("Initializing SD card 2...");
+
+  // see if the card is present and can be initialized:
+  if (!sd1.begin(SD2_CS)) {
+    sd2.initError("sd2:");
+    //error("Card 2 failed, or not present");
+  }
+
+  Serial.println("Card 2 initialized.");
+
   getLogFileName();
 
   if (! sd1.exists(logfileName)) {
     // only open a new file if it doesn't exist
     logfile1 = sd1.open(logfileName, FILE_WRITE);
-    //break;  // leave the loop!
-    //}
   }
 
   if (! logfile1) {
-    error("couldnt create file");
+    sd1.errorExit("logfile1");
+    //error("couldnt create file 1");
   }
 
-  Serial.print("Logging to: ");
+  Serial.print("Logging on card 1 to: ");
   Serial.println(logfileName);
-}
 
-
-
-
-
-
-
-void newLogFile() {
   getLogFileName();
 
-}
-
-void setup() {
-
-  Serial.begin(9600);
-
-  // Wait for USB Serial
-  while (!Serial) {
-    SysCall::yield();
+  if (! sd2.exists(logfileName)) {
+    // only open a new file if it doesn't exist
+    logfile2 = sd2.open(logfileName, FILE_WRITE);
   }
 
-  pinMode(readingLedPin, OUTPUT);
-  pinMode(writingLedPin, OUTPUT);
-  pinMode(errorLedPin, OUTPUT);
-
-  pinMode(currentRelay, OUTPUT);
-  pinMode(groundRelay, OUTPUT);
-
-  Controllino_RTC_init(0);
-
-  getTimeAndDate();
-  initializeADCs();
-  initializeSdCards();
-
-  digitalWrite(currentRelay, HIGH);
-  digitalWrite(groundRelay, HIGH);
-  startMillis = millis();
-}
-
-void loop() {
-
-  currentMillis = millis();
-
-  if (measuring) {
-    if (currentMillis - startMillis >= hammerTime) { // check if the time for measurement rounds is elapsed
-      digitalWrite(currentRelay, LOW);
-      digitalWrite(groundRelay, LOW);
-      measuring = false;
-      Serial.println("Moving from hammerTime to shutDownTime!");
-      startMillis = millis();
-    } else {
-      measurementRound();
-      if (needsNewLogFile) {
-        newLogFile();
-      }
-    }
-  } else {
-    if (currentMillis - startMillis >= shutDownTime) {
-      digitalWrite(currentRelay, HIGH);
-      digitalWrite(groundRelay, HIGH);
-      measuring = true;
-      Serial.println("Moving from shutDownTime to hammerTime!");
-      startMillis = millis();
-    }
+  if (! logfile2) {
+    sd2.errorExit("logfile2");
+    //error("couldnt create file 2");
   }
 
-
+  Serial.print("Logging on card 2 to: ");
+  Serial.println(logfileName);
 }
 
 void measurementRound() {
@@ -251,9 +205,9 @@ void measurementRound() {
   int16_t measurement30, measurement31, measurement32, measurement33;
 
   getTimeAndDate(); //store date and time before taking measurements/reading ACDs, will be printed to logfile along the values measured
-  
+
   measurementRoundStartMillis = millis();
-  
+
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
@@ -360,4 +314,158 @@ void measurementRound() {
 
   logfile1.close();
 
+  logfile2.print(dateAndTimeData);
+
+  logfile2.print(",");
+
+  logfile2.print(measurementRoundAverage00);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage02);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage02);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage03);
+  logfile2.print(",");
+
+  logfile2.print(measurementRoundAverage20);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage22);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage22);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage23);
+  logfile2.print(",");
+
+  logfile2.print(measurementRoundAverage20);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage22);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage22);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage23);
+  logfile2.print(",");
+
+  logfile2.print(measurementRoundAverage30);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage32);
+  logfile2.print(",");
+  logfile2.print(measurementRoundAverage32);
+  logfile2.print(",");
+  logfile2.println(measurementRoundAverage33);
+
+  logfile2.close();
+}
+
+
+void setup() {
+
+  Serial.begin(9600);
+
+  // Wait for USB Serial
+  while (!Serial) {
+    SysCall::yield();
+  }
+
+  pinMode(currentRelay, OUTPUT);
+  pinMode(groundRelay, OUTPUT);
+
+  Controllino_RTC_init(0);
+
+  digitalWrite(currentRelay, HIGH);
+  digitalWrite(groundRelay, HIGH);
+  delay(500); // allows time for ACDs to start
+
+  getTimeAndDate();
+  initializeADCs();
+  initializeSdCards();
+
+  measurementRound();
+  startShutDownPeriod = millis();
+
+  digitalWrite(currentRelay, LOW);
+  digitalWrite(groundRelay, LOW);
+}
+
+void loop() {
+
+  // REFACTORING loop():
+  //startShutDownPeriod = 0;
+  //measurementPeriod = 10000;
+  //shutDownPeriod = 10000;
+
+  if (millis() - startShutDownPeriod <= shutDownPeriod) {
+    digitalWrite(currentRelay, HIGH);
+    digitalWrite(groundRelay, HIGH);
+    delay(500); // allows time for ACDs to start
+
+    //getTimeAndDate();
+    //initializeADCs();
+    //initializeSdCards();
+    getLogFileName();
+
+    if (! sd1.exists(logfileName)) {
+      // only open a new file if it doesn't exist
+      logfile1 = sd1.open(logfileName, FILE_WRITE);
+    }
+
+    if (! logfile1) {
+      sd1.errorExit("logfile1");
+      //error("couldnt create file 1");
+    }
+
+    Serial.print("Logging on card 1 to: ");
+    Serial.println(logfileName);
+
+    getLogFileName();
+
+    if (! sd2.exists(logfileName)) {
+      // only open a new file if it doesn't exist
+      logfile2 = sd2.open(logfileName, FILE_WRITE);
+    }
+
+    if (! logfile2) {
+      sd2.errorExit("logfile2");
+      //error("couldnt create file 2");
+    }
+
+    Serial.print("Logging on card 2 to: ");
+    Serial.println(logfileName);
+
+    measurementRound();
+    
+    startShutDownPeriod = millis();
+
+    digitalWrite(currentRelay, LOW);
+    digitalWrite(groundRelay, LOW);
+  }
+
+
+
+
+
+
+  //  currentMillis = millis();
+  //
+  //  if (measuring) {
+  //    if (currentMillis - startMillis >= hammerTime) { // check if the time for measurement rounds is elapsed
+  //      digitalWrite(currentRelay, LOW);
+  //      digitalWrite(groundRelay, LOW);
+  //      measuring = false;
+  //      Serial.println("Moving from hammerTime to shutDownTime!");
+  //      startMillis = millis();
+  //    } else {
+  //      measurementRound();
+  //      if (needsNewLogFile) {
+  //        newLogFile();
+  //      }
+  //    }
+  //  } else {
+  //    if (currentMillis - startMillis >= shutDownTime) {
+  //      digitalWrite(currentRelay, HIGH);
+  //      digitalWrite(groundRelay, HIGH);
+  //      measuring = true;
+  //      Serial.println("Moving from shutDownTime to hammerTime!");
+  //      startMillis = millis();
+  //    }
+  //  }
 }
