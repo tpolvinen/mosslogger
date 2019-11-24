@@ -112,7 +112,7 @@ void getDirName() {
   dirYear = 2000 + Controllino_GetYear();
   dirMonth = Controllino_GetMonth();
 
-  sprintf(dirName, ("/%04d%02"), dirYear, dirMonth);
+  sprintf(dirName, ("/%04d%02d"), dirYear, dirMonth);
 }
 
 void initializeADCs() {
@@ -266,7 +266,7 @@ void initializeSdCards() {
   // rename the copy
   if (!sd2.rename("copy.bin", "rename.bin")) {
     sd2.errorExit("sd2.rename");
-  }
+  } 
   // list current directory on both cards
   Serial.println(F("------sd1 -------"));
   sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
@@ -527,7 +527,7 @@ void setup() {
   initializeADCs();
   initializeSdCards();
 
-  //measurementRound();
+  measurementRound();
 
   startShutDownPeriod = millis();
 
