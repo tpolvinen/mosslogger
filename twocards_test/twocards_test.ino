@@ -40,7 +40,7 @@ const uint8_t BUF_DIM = 100;
 uint8_t buf[BUF_DIM];
 
 const uint32_t FILE_SIZE = 1000000;
-const uint16_t NWRITE = FILE_SIZE/BUF_DIM;
+const uint16_t NWRITE = FILE_SIZE / BUF_DIM;
 
 //------------------------------------------------------------------------------
 // print error msg, any SD error codes, and halt.
@@ -52,7 +52,7 @@ const uint16_t NWRITE = FILE_SIZE/BUF_DIM;
 // These are used in getTimeAndDate()
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char logfileName[13]; // space for DDHHMMSS.csv, plus the null char terminator
-char dirName[7]; // space for YYYYMM, plus the null char terminator
+char dirName[8]; // space for /YYYYMM, plus the null char terminator
 
 uint8_t thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getTimeAndDate()
 uint8_t thisMonth; // = Controllino_GetMonth();
@@ -81,11 +81,6 @@ const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to powe
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages and writing the new data to the file on SD card.
 
-//void error(char *str) {
-//  Serial.print("error: ");
-//  Serial.println(str);
-//  while (1);
-//}
 //------------------------------------------------------------------------------
 // print error msg, any SD error codes, and halt.
 // store messages in flash
@@ -117,7 +112,7 @@ void getDirName() {
   dirYear = 2000 + Controllino_GetYear();
   dirMonth = Controllino_GetMonth();
 
-  sprintf(dirName, ("%04d%02"), dirYear, dirMonth);
+  sprintf(dirName, ("/%04d%02"), dirYear, dirMonth);
 }
 
 void initializeADCs() {
@@ -146,9 +141,6 @@ void initializeADCs() {
 }
 
 void initializeSdCards() {
-  Serial.print(F("FreeStack: "));
-
-  Serial.println(FreeStack());
 
   // fill buffer with known data
   for (size_t i = 0; i < sizeof(buf); i++) {
@@ -178,7 +170,7 @@ void initializeSdCards() {
   if (!sd2.begin(SD2_CS)) {
     sd2.initError("sd2:");
   }
-// create Dir2 on sd2 if it does not exist
+  // create Dir2 on sd2 if it does not exist
   if (!sd2.exists("/Dir2")) {
     if (!sd2.mkdir("/Dir2")) {
       sd2.errorExit("sd2.mkdir");
@@ -263,7 +255,7 @@ void initializeSdCards() {
   Serial.println(F(" millis"));
   // close test.bin
   file1.close();
-  file2.close(); 
+  file2.close();
   // list current directory on both cards
   Serial.println(F("------sd1 -------"));
   sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
@@ -283,62 +275,62 @@ void initializeSdCards() {
   Serial.println(F("---------------------"));
   Serial.println(F("Done"));
 
-//  // disable sd2 while initializing sd1
-//  pinMode(SD2_CS, OUTPUT);
-//  digitalWrite(SD2_CS, HIGH);
-//
-//  // initialize sd1
-//  Serial.print("Initializing SD card 1...");
-//  // make sure that the default chip select pin is set to
-//  // output, even if you don't use it:
-//  pinMode(SD1_CS, OUTPUT);
-//
-//  // see if the card is present and can be initialized:
-//  if (!sd1.begin(SD1_CS)) {
-//    sd1.initError("sd1:");
-//    //error("Card 1 failed, or not present");
-//  }
-//
-//  Serial.println("Card 1 initialized.");
-//
-//  // initialize sd2
-//  Serial.print("Initializing SD card 2...");
-//
-//  // see if the card is present and can be initialized:
-//  if (!sd1.begin(SD2_CS)) {
-//    sd2.initError("sd2:");
-//    //error("Card 2 failed, or not present");
-//  }
-//
-//  Serial.println("Card 2 initialized.");
-//
-//  getLogFileName();
-//
-//  if (! sd1.exists(logfileName)) {
-//    // only open a new file if it doesn't exist
-//    logfile1 = sd1.open(logfileName, FILE_WRITE);
-//  }
-//
-//  if (! logfile1) {
-//    sd1.errorExit("logfile1");
-//    //error("couldnt create file 1");
-//  }
-//
-//  Serial.print("Logging on card 1 to: ");
-//  Serial.println(logfileName);
-//
-//  if (! sd2.exists(logfileName)) {
-//    // only open a new file if it doesn't exist
-//    logfile2 = sd2.open(logfileName, FILE_WRITE);
-//  }
-//
-//  if (! logfile2) {
-//    sd2.errorExit("logfile2");
-//    //error("couldnt create file 2");
-//  }
-//
-//  Serial.print("Logging on card 2 to: ");
-//  Serial.println(logfileName);
+  //  // disable sd2 while initializing sd1
+  //  pinMode(SD2_CS, OUTPUT);
+  //  digitalWrite(SD2_CS, HIGH);
+  //
+  //  // initialize sd1
+  //  Serial.print("Initializing SD card 1...");
+  //  // make sure that the default chip select pin is set to
+  //  // output, even if you don't use it:
+  //  pinMode(SD1_CS, OUTPUT);
+  //
+  //  // see if the card is present and can be initialized:
+  //  if (!sd1.begin(SD1_CS)) {
+  //    sd1.initError("sd1:");
+  //    //error("Card 1 failed, or not present");
+  //  }
+  //
+  //  Serial.println("Card 1 initialized.");
+  //
+  //  // initialize sd2
+  //  Serial.print("Initializing SD card 2...");
+  //
+  //  // see if the card is present and can be initialized:
+  //  if (!sd1.begin(SD2_CS)) {
+  //    sd2.initError("sd2:");
+  //    //error("Card 2 failed, or not present");
+  //  }
+  //
+  //  Serial.println("Card 2 initialized.");
+  //
+  //  getLogFileName();
+  //
+  //  if (! sd1.exists(logfileName)) {
+  //    // only open a new file if it doesn't exist
+  //    logfile1 = sd1.open(logfileName, FILE_WRITE);
+  //  }
+  //
+  //  if (! logfile1) {
+  //    sd1.errorExit("logfile1");
+  //    //error("couldnt create file 1");
+  //  }
+  //
+  //  Serial.print("Logging on card 1 to: ");
+  //  Serial.println(logfileName);
+  //
+  //  if (! sd2.exists(logfileName)) {
+  //    // only open a new file if it doesn't exist
+  //    logfile2 = sd2.open(logfileName, FILE_WRITE);
+  //  }
+  //
+  //  if (! logfile2) {
+  //    sd2.errorExit("logfile2");
+  //    //error("couldnt create file 2");
+  //  }
+  //
+  //  Serial.print("Logging on card 2 to: ");
+  //  Serial.println(logfileName);
 }
 
 void measurementRound() {
@@ -517,6 +509,12 @@ void setup() {
     SysCall::yield();
   }
 
+  Serial.println("twocards_test.ino");
+
+  Serial.print(F("FreeStack: "));
+
+  Serial.println(FreeStack());
+
   pinMode(currentRelay, OUTPUT);
   pinMode(groundRelay, OUTPUT);
 
@@ -530,7 +528,7 @@ void setup() {
   initializeSdCards();
 
   //measurementRound();
-  
+
   startShutDownPeriod = millis();
 
   digitalWrite(currentRelay, LOW);
@@ -539,31 +537,105 @@ void setup() {
 
 void loop() {
 
-//  // REFACTORING loop():
-//  //startShutDownPeriod = 0;
-//  //measurementPeriod = 10000;
-//  //shutDownPeriod = 10000;
-//
-//  if (millis() - startShutDownPeriod <= shutDownPeriod) {
-//    digitalWrite(currentRelay, HIGH);
-//    digitalWrite(groundRelay, HIGH);
-//    delay(500); // allows time for ACDs to start
-//
-//    //getTimeAndDate();
-//    //initializeADCs();
-//    //initializeSdCards();
-//    getLogFileName();
-//
-//    if (! sd1.exists(logfileName)) {
-//      // only open a new file if it doesn't exist
-//      logfile1 = sd1.open(logfileName, FILE_WRITE);
-//    }
-//
-//    if (! logfile1) {
-//      sd1.errorExit("logfile1");
-//      //error("couldnt create file 1");
-//    }
-//
+
+  if (millis() - startShutDownPeriod <= shutDownPeriod) {
+    digitalWrite(currentRelay, HIGH);
+    digitalWrite(groundRelay, HIGH);
+    delay(500); // allows time for ACDs to start
+
+    getDirName();
+    getLogFileName();
+
+    //      if (! sd1.exists(logfileName)) {
+    //        // only open a new file if it doesn't exist
+    //        logfile1 = sd1.open(logfileName, FILE_WRITE);
+    //      }
+    //      if (! logfile1) {
+    //        sd1.errorExit("logfile1");
+    //        //error("couldnt create file 1");
+    //      }
+
+    // create Dir1 on sd1 if it does not exist
+    if (!sd1.exists(dirName)) {
+      if (!sd1.mkdir(dirName)) {
+        sd1.errorExit("sd1.mkdir");
+      }
+    }
+    // create Dir2 on sd2 if it does not exist
+    if (!sd2.exists(dirName)) {
+      if (!sd2.mkdir(dirName)) {
+        sd2.errorExit("sd2.mkdir");
+      }
+    }
+
+    // list root directory on both cards
+    Serial.println(F("------sd1 root-------"));
+    sd1.ls();
+    Serial.println(F("------sd2 root-------"));
+    sd2.ls();
+
+    // make dirName the default directory for sd1
+    if (!sd1.chdir(dirName)) {
+      sd1.errorExit("sd1.chdir");
+    }
+
+    // make dirName the default directory for sd2
+    if (!sd2.chdir(dirName)) {
+      sd2.errorExit("sd2.chdir");
+    }
+    // list current directory on both cards
+    Serial.println(F("------sd1 Dir1-------"));
+    sd1.ls();
+    Serial.println(F("------sd2 Dir2-------"));
+    sd2.ls();
+    Serial.println(F("---------------------"));
+
+// set the current working directory for open() to sd1
+  sd1.chvol();
+
+// create or open /Dir1/test.bin and truncate it to zero length
+  SdFile logfile1;
+  if (!logfile1.open(logfileName, O_RDWR | O_CREAT | O_TRUNC)) {
+    sd1.errorExit("logfile1");
+  }
+  Serial.println(F("Writing logfile1 to sd1"));
+
+  // write data to dirName/logfileName on sd1
+  for (uint16_t i = 0; i < NWRITE; i++) {
+    if (logfile1.write(buf, sizeof(buf)) != sizeof(buf)) {
+      sd1.errorExit("sd1.write");
+    }
+  }
+  // set the current working directory for open() to sd2
+  sd2.chvol();
+
+  // create or open dirName/logfileName and truncate it to zero length
+  SdFile logfile2;
+  if (!logfile2.open(logfileName, O_WRONLY | O_CREAT | O_TRUNC)) {
+    sd2.errorExit("logfile2");
+  }
+  Serial.println(F("Copying logfile1 to logfile2"));
+
+  // copy logfile1 to logfile2
+  logfile1.rewind();
+  uint32_t t = millis();
+
+  while (1) {
+    int n = logfile1.read(buf, sizeof(buf));
+    if (n < 0) {
+      sd1.errorExit("read1");
+    }
+    if (n == 0) {
+      break;
+    }
+    if ((int)logfile2.write(buf, n) != n) {
+      sd2.errorExit("write2");
+    }
+  }
+
+
+
+
 //    Serial.print("Logging on card 1 to: ");
 //    Serial.println(logfileName);
 //
@@ -583,10 +655,10 @@ void loop() {
 //    Serial.println(logfileName);
 //
 //    measurementRound();
-//    
-//    startShutDownPeriod = millis();
-//
-//    digitalWrite(currentRelay, LOW);
-//    digitalWrite(groundRelay, LOW);
-//  }
+
+    startShutDownPeriod = millis();
+
+    digitalWrite(currentRelay, LOW);
+    digitalWrite(groundRelay, LOW);
+  }
 }
