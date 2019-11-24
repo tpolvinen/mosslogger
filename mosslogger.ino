@@ -173,8 +173,6 @@ void initializeSdCards() {
   Serial.print("Logging on card 1 to: ");
   Serial.println(logfileName);
 
-  getLogFileName();
-
   if (! sd2.exists(logfileName)) {
     // only open a new file if it doesn't exist
     logfile2 = sd2.open(logfileName, FILE_WRITE);
@@ -356,7 +354,6 @@ void measurementRound() {
   logfile2.close();
 }
 
-
 void setup() {
 
   Serial.begin(9600);
@@ -375,11 +372,11 @@ void setup() {
   digitalWrite(groundRelay, HIGH);
   delay(500); // allows time for ACDs to start
 
-  getTimeAndDate();
   initializeADCs();
   initializeSdCards();
 
   measurementRound();
+  
   startShutDownPeriod = millis();
 
   digitalWrite(currentRelay, LOW);
@@ -438,34 +435,4 @@ void loop() {
     digitalWrite(currentRelay, LOW);
     digitalWrite(groundRelay, LOW);
   }
-
-
-
-
-
-
-  //  currentMillis = millis();
-  //
-  //  if (measuring) {
-  //    if (currentMillis - startMillis >= hammerTime) { // check if the time for measurement rounds is elapsed
-  //      digitalWrite(currentRelay, LOW);
-  //      digitalWrite(groundRelay, LOW);
-  //      measuring = false;
-  //      Serial.println("Moving from hammerTime to shutDownTime!");
-  //      startMillis = millis();
-  //    } else {
-  //      measurementRound();
-  //      if (needsNewLogFile) {
-  //        newLogFile();
-  //      }
-  //    }
-  //  } else {
-  //    if (currentMillis - startMillis >= shutDownTime) {
-  //      digitalWrite(currentRelay, HIGH);
-  //      digitalWrite(groundRelay, HIGH);
-  //      measuring = true;
-  //      Serial.println("Moving from shutDownTime to hammerTime!");
-  //      startMillis = millis();
-  //    }
-  //  }
 }
