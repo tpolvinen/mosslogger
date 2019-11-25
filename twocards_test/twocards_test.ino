@@ -77,7 +77,7 @@ File logfile2;
 unsigned long startShutDownPeriod = 0;
 
 //const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep making measurement rounds
-const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 1000; // in milliseconds, how long to power off ADCs between measurement periods
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages and writing the new data to the file on SD card.
 
@@ -142,14 +142,12 @@ void initializeADCs() {
 
 void initializeSdCards() {
 
+  getDirName();
+  getLogFileName();
+
   // fill buffer with known data
   for (size_t i = 0; i < sizeof(buf); i++) {
     buf[i] = i;
-  }
-
-  Serial.println(F("type any character to start"));
-  while (!Serial.available()) {
-    SysCall::yield();
   }
 
   // disable sd2 while initializing sd1
@@ -160,19 +158,32 @@ void initializeSdCards() {
   if (!sd1.begin(SD1_CS)) {
     sd1.initError("sd1:");
   }
-  // create Dir1 on sd1 if it does not exist
-  if (!sd1.exists("/Dir1")) {
-    if (!sd1.mkdir("/Dir1")) {
+  // create TestDir1 on sd1 if it does not exist
+  if (!sd1.exists("/TestDir1")) {
+    if (!sd1.mkdir("/TestDir1")) {
       sd1.errorExit("sd1.mkdir");
     }
   }
+  // create dirName on sd1 if it does not exist
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
   // initialize the second card
   if (!sd2.begin(SD2_CS)) {
     sd2.initError("sd2:");
   }
   // create Dir2 on sd2 if it does not exist
-  if (!sd2.exists("/Dir2")) {
-    if (!sd2.mkdir("/Dir2")) {
+  if (!sd2.exists("/TestDir2")) {
+    if (!sd2.mkdir("/TestDir2")) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+  // create dirName on sd2 if it does not exist
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
       sd2.errorExit("sd2.mkdir");
     }
   }
@@ -183,12 +194,12 @@ void initializeSdCards() {
   sd2.ls();
 
   // make /Dir1 the default directory for sd1
-  if (!sd1.chdir("/Dir1")) {
+  if (!sd1.chdir("/TestDir1")) {
     sd1.errorExit("sd1.chdir");
   }
 
   // make /Dir2 the default directory for sd2
-  if (!sd2.chdir("/Dir2")) {
+  if (!sd2.chdir("/TestDir2")) {
     sd2.errorExit("sd2.chdir");
   }
 
@@ -208,16 +219,16 @@ void initializeSdCards() {
   // set the current working directory for open() to sd1
   sd1.chvol();
 
-  // create or open /Dir1/test.bin and truncate it to zero length
-  SdFile file1;
-  if (!file1.open("test.bin", O_RDWR | O_CREAT | O_TRUNC)) {
-    sd1.errorExit("file1");
+  // create or open /TestDir1/test.bin and truncate it to zero length
+  SdFile testfile1;
+  if (!testfile1.open("test.bin", O_RDWR | O_CREAT | O_TRUNC)) {
+    sd1.errorExit("testfile1");
   }
   Serial.println(F("Writing test.bin to sd1"));
 
-  // write data to /Dir1/test.bin on sd1
+  // write data to /TestDir1/test.bin on sd1
   for (uint16_t i = 0; i < NWRITE; i++) {
-    if (file1.write(buf, sizeof(buf)) != sizeof(buf)) {
+    if (testfile1.write(buf, sizeof(buf)) != sizeof(buf)) {
       sd1.errorExit("sd1.write");
     }
   }
@@ -225,37 +236,37 @@ void initializeSdCards() {
   sd2.chvol();
 
   // create or open /Dir2/copy.bin and truncate it to zero length
-  SdFile file2;
-  if (!file2.open("copy.bin", O_WRONLY | O_CREAT | O_TRUNC)) {
+  SdFile testfile2;
+  if (!testfile2.open("copy.bin", O_WRONLY | O_CREAT | O_TRUNC)) {
     sd2.errorExit("file2");
   }
   Serial.println(F("Copying test.bin to copy.bin"));
 
   // copy file1 to file2
-  file1.rewind();
+  testfile1.rewind();
   uint32_t t = millis();
 
   while (1) {
-    int n = file1.read(buf, sizeof(buf));
+    int n = testfile1.read(buf, sizeof(buf));
     if (n < 0) {
       sd1.errorExit("read1");
     }
     if (n == 0) {
       break;
     }
-    if ((int)file2.write(buf, n) != n) {
+    if ((int)testfile2.write(buf, n) != n) {
       sd2.errorExit("write2");
     }
   }
   t = millis() - t;
   Serial.print(F("File size: "));
-  Serial.println(file2.fileSize());
+  Serial.println(testfile2.fileSize());
   Serial.print(F("Copy time: "));
   Serial.print(t);
   Serial.println(F(" millis"));
   // close test.bin
-  file1.close();
-  file2.close();
+  testfile1.close();
+  testfile2.close();
   // list current directory on both cards
   Serial.println(F("------sd1 -------"));
   sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
@@ -266,7 +277,7 @@ void initializeSdCards() {
   // rename the copy
   if (!sd2.rename("copy.bin", "rename.bin")) {
     sd2.errorExit("sd2.rename");
-  } 
+  }
   // list current directory on both cards
   Serial.println(F("------sd1 -------"));
   sd1.ls("/", LS_R | LS_DATE | LS_SIZE);
@@ -275,62 +286,15 @@ void initializeSdCards() {
   Serial.println(F("---------------------"));
   Serial.println(F("Done"));
 
-  //  // disable sd2 while initializing sd1
-  //  pinMode(SD2_CS, OUTPUT);
-  //  digitalWrite(SD2_CS, HIGH);
-  //
-  //  // initialize sd1
-  //  Serial.print("Initializing SD card 1...");
-  //  // make sure that the default chip select pin is set to
-  //  // output, even if you don't use it:
-  //  pinMode(SD1_CS, OUTPUT);
-  //
-  //  // see if the card is present and can be initialized:
-  //  if (!sd1.begin(SD1_CS)) {
-  //    sd1.initError("sd1:");
-  //    //error("Card 1 failed, or not present");
-  //  }
-  //
-  //  Serial.println("Card 1 initialized.");
-  //
-  //  // initialize sd2
-  //  Serial.print("Initializing SD card 2...");
-  //
-  //  // see if the card is present and can be initialized:
-  //  if (!sd1.begin(SD2_CS)) {
-  //    sd2.initError("sd2:");
-  //    //error("Card 2 failed, or not present");
-  //  }
-  //
-  //  Serial.println("Card 2 initialized.");
-  //
-  //  getLogFileName();
-  //
-  //  if (! sd1.exists(logfileName)) {
-  //    // only open a new file if it doesn't exist
-  //    logfile1 = sd1.open(logfileName, FILE_WRITE);
-  //  }
-  //
-  //  if (! logfile1) {
-  //    sd1.errorExit("logfile1");
-  //    //error("couldnt create file 1");
-  //  }
-  //
-  //  Serial.print("Logging on card 1 to: ");
-  //  Serial.println(logfileName);
-  //
-  //  if (! sd2.exists(logfileName)) {
-  //    // only open a new file if it doesn't exist
-  //    logfile2 = sd2.open(logfileName, FILE_WRITE);
-  //  }
-  //
-  //  if (! logfile2) {
-  //    sd2.errorExit("logfile2");
-  //    //error("couldnt create file 2");
-  //  }
-  //
-  //  Serial.print("Logging on card 2 to: ");
-  //  Serial.println(logfileName);
+  // make dirName the default directory for sd1
+    if (!sd1.chdir(dirName)) {
+      sd1.errorExit("sd1.chdir");
+    }
+
+    // make dirName the default directory for sd2
+    if (!sd2.chdir(dirName)) {
+      sd2.errorExit("sd2.chdir");
+    }
 }
 
 void measurementRound() {
@@ -509,7 +473,10 @@ void setup() {
     SysCall::yield();
   }
 
-  Serial.println("twocards_test.ino");
+  Serial.println();
+  Serial.println();
+
+  Serial.println(F("twocards_test.ino"));
 
   Serial.print(F("FreeStack: "));
 
@@ -543,46 +510,8 @@ void loop() {
     digitalWrite(groundRelay, HIGH);
     delay(500); // allows time for ACDs to start
 
-    getDirName();
-    getLogFileName();
 
-    //      if (! sd1.exists(logfileName)) {
-    //        // only open a new file if it doesn't exist
-    //        logfile1 = sd1.open(logfileName, FILE_WRITE);
-    //      }
-    //      if (! logfile1) {
-    //        sd1.errorExit("logfile1");
-    //        //error("couldnt create file 1");
-    //      }
-
-    // create Dir1 on sd1 if it does not exist
-    if (!sd1.exists(dirName)) {
-      if (!sd1.mkdir(dirName)) {
-        sd1.errorExit("sd1.mkdir");
-      }
-    }
-    // create Dir2 on sd2 if it does not exist
-    if (!sd2.exists(dirName)) {
-      if (!sd2.mkdir(dirName)) {
-        sd2.errorExit("sd2.mkdir");
-      }
-    }
-
-    // list root directory on both cards
-    Serial.println(F("------sd1 root-------"));
-    sd1.ls();
-    Serial.println(F("------sd2 root-------"));
-    sd2.ls();
-
-    // make dirName the default directory for sd1
-    if (!sd1.chdir(dirName)) {
-      sd1.errorExit("sd1.chdir");
-    }
-
-    // make dirName the default directory for sd2
-    if (!sd2.chdir(dirName)) {
-      sd2.errorExit("sd2.chdir");
-    }
+    
     // list current directory on both cards
     Serial.println(F("------sd1 Dir1-------"));
     sd1.ls();
@@ -590,71 +519,71 @@ void loop() {
     sd2.ls();
     Serial.println(F("---------------------"));
 
-// set the current working directory for open() to sd1
-  sd1.chvol();
+    // set the current working directory for open() to sd1
+    sd1.chvol();
 
-// create or open /Dir1/test.bin and truncate it to zero length
-  SdFile logfile1;
-  if (!logfile1.open(logfileName, O_RDWR | O_CREAT | O_TRUNC)) {
-    sd1.errorExit("logfile1");
-  }
-  Serial.println(F("Writing logfile1 to sd1"));
-
-  // write data to dirName/logfileName on sd1
-  for (uint16_t i = 0; i < NWRITE; i++) {
-    if (logfile1.write(buf, sizeof(buf)) != sizeof(buf)) {
-      sd1.errorExit("sd1.write");
+    // create or open /Dir1/test.bin and truncate it to zero length
+    SdFile logfile1;
+    if (!logfile1.open(logfileName, O_RDWR | O_CREAT | O_TRUNC)) {
+      sd1.errorExit("logfile1");
     }
-  }
-  // set the current working directory for open() to sd2
-  sd2.chvol();
+    Serial.println(F("Writing logfile1 to sd1"));
 
-  // create or open dirName/logfileName and truncate it to zero length
-  SdFile logfile2;
-  if (!logfile2.open(logfileName, O_WRONLY | O_CREAT | O_TRUNC)) {
-    sd2.errorExit("logfile2");
-  }
-  Serial.println(F("Copying logfile1 to logfile2"));
-
-  // copy logfile1 to logfile2
-  logfile1.rewind();
-  uint32_t t = millis();
-
-  while (1) {
-    int n = logfile1.read(buf, sizeof(buf));
-    if (n < 0) {
-      sd1.errorExit("read1");
+    // write data to dirName/logfileName on sd1
+    for (uint16_t i = 0; i < NWRITE; i++) {
+      if (logfile1.write(buf, sizeof(buf)) != sizeof(buf)) {
+        sd1.errorExit("sd1.write");
+      }
     }
-    if (n == 0) {
-      break;
+    // set the current working directory for open() to sd2
+    sd2.chvol();
+
+    // create or open dirName/logfileName and truncate it to zero length
+    SdFile logfile2;
+    if (!logfile2.open(logfileName, O_WRONLY | O_CREAT | O_TRUNC)) {
+      sd2.errorExit("logfile2");
     }
-    if ((int)logfile2.write(buf, n) != n) {
-      sd2.errorExit("write2");
+    Serial.println(F("Copying logfile1 to logfile2"));
+
+    // copy logfile1 to logfile2
+    logfile1.rewind();
+    uint32_t t = millis();
+
+    while (1) {
+      int n = logfile1.read(buf, sizeof(buf));
+      if (n < 0) {
+        sd1.errorExit("read1");
+      }
+      if (n == 0) {
+        break;
+      }
+      if ((int)logfile2.write(buf, n) != n) {
+        sd2.errorExit("write2");
+      }
     }
-  }
 
 
 
 
-//    Serial.print("Logging on card 1 to: ");
-//    Serial.println(logfileName);
-//
-//    getLogFileName();
-//
-//    if (! sd2.exists(logfileName)) {
-//      // only open a new file if it doesn't exist
-//      logfile2 = sd2.open(logfileName, FILE_WRITE);
-//    }
-//
-//    if (! logfile2) {
-//      sd2.errorExit("logfile2");
-//      //error("couldnt create file 2");
-//    }
-//
-//    Serial.print("Logging on card 2 to: ");
-//    Serial.println(logfileName);
-//
-//    measurementRound();
+    //    Serial.print("Logging on card 1 to: ");
+    //    Serial.println(logfileName);
+    //
+    //    getLogFileName();
+    //
+    //    if (! sd2.exists(logfileName)) {
+    //      // only open a new file if it doesn't exist
+    //      logfile2 = sd2.open(logfileName, FILE_WRITE);
+    //    }
+    //
+    //    if (! logfile2) {
+    //      sd2.errorExit("logfile2");
+    //      //error("couldnt create file 2");
+    //    }
+    //
+    //    Serial.print("Logging on card 2 to: ");
+    //    Serial.println(logfileName);
+    //
+    //    measurementRound();
 
     startShutDownPeriod = millis();
 
@@ -662,3 +591,79 @@ void loop() {
     digitalWrite(groundRelay, LOW);
   }
 }
+
+
+
+
+// Try this instead:
+//#include <SPI.h>
+//#include <SdFat.h>
+//
+//const byte chipSelect = 10;
+//SdFat sd;
+//SdFile file;
+//
+//void setup()
+//{
+//  Serial.begin(9600);
+//
+//  Serial.print("Initializing SD card...");
+//  pinMode(10, OUTPUT);
+//
+//  if (!sd.begin(10)) {
+//    Serial.println("initialization failed!");
+//    return;
+//  }
+//  Serial.println("initialization done.");
+//
+//  //make Folders
+//  sd.mkdir("Folders");
+//  sd.chdir("/Folders");
+//  sd.mkdir("Folder_A");
+//  sd.mkdir("Folder_B");
+//
+//  sd.chdir("/Folders/Folder_A");
+//
+//  //open file within Folder
+//  file.open ("testA.txt", O_RDWR | O_CREAT | O_AT_END);
+//  Serial.print("Writing to Folder_A file testA.txt...");
+//  file.println("testing file write to Folder_A");
+//  // close the file:
+//  file.close();
+//  Serial.println("done.");
+//
+//  sd.chdir("/Folders/Folder_B");
+//
+//  file.open("testB.txt", O_RDWR | O_CREAT | O_AT_END);
+//  Serial.print("Writing to Folder_B file testB.txt...");
+//  file.println("testing file write to Folder_B");
+//  // close the file:
+//  file.close();
+//  Serial.println("done.");
+//  Serial.println();
+//
+//  //reopen the files and read them
+//
+//  sd.chdir("/Folders/Folder_A");
+//  file.open ("testA.txt", O_READ);
+//  Serial.println("Reading testA.txt");
+//  while (file.available()) {
+//    Serial.write(file.read());
+//  }
+//  // close the file:
+//  Serial.println();
+//  file.close();
+//
+//  sd.chdir("/Folders/Folder_B");
+//  file.open("testB.txt", O_READ);
+//  Serial.println("Reading testB.txt");
+//  while (file.available()) {
+//    Serial.write(file.read());
+//  }
+//  // close the file:
+//  Serial.println();
+//  file.close();
+//}
+//
+//void loop()
+//{}
