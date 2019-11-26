@@ -23,7 +23,7 @@ Adafruit_ADS1115 ads3(0x4B);
 
 unsigned long startShutDownPeriod = 0;
 
-const unsigned long shutDownPeriod = 4000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 9000; // in milliseconds, how long to power off ADCs between measurement periods
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
@@ -92,9 +92,11 @@ void getDateAndTime() {
   dateYear = thisYear + 2000;
   
   sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+  delay(10);
   sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
+  delay(10);
   sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
-  
+  delay(10);
 }
 
 //------------------------------------------------------------------------------
