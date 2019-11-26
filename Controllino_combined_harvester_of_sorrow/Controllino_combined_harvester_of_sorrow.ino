@@ -23,9 +23,11 @@ Adafruit_ADS1115 ads3(0x4B);
 
 unsigned long startShutDownPeriod = 0;
 
-const unsigned long shutDownPeriod = 4000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 1000; // in milliseconds, how long to power off ADCs between measurement periods
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+
+int16_t sdCardInitializeDelay = 5000; // in milliseconds, how long to wait after failed sd card start (at the beginning of each sd write function).
 
 int16_t measurementRoundCounter = 0;
 
@@ -162,6 +164,62 @@ void measurements() {
 
     measurementRoundCounter++;
 
+    // limit if for measurement protection:
+    //    long max. is 2,147,483,647
+    //    int16_t max. is 32,767
+    //    long max - int16_t max = 2147450880
+    //    if (measurementRoundAverage00 > 2147450880L) { break; }
+    // ...so the measurements stop if the added values become too big and overflow is imminent.
+
+    if (measurementRoundAverage00 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage01 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage02 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage03 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage10 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage11 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage12 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage13 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage20 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage21 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage22 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage23 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage30 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage31 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage32 > 2147450880L) {
+      break;
+    }
+    if (measurementRoundAverage33 > 2147450880L) {
+      break;
+    }
+
   }
 
   measurementRoundAverage00 /= measurementRoundCounter;
@@ -189,9 +247,12 @@ void measurements() {
 
 void sd1write() {
 
-  if (!sd1.begin(SD1_CS)) {
-    sd1.initError("sd1.initialize");
-    return;
+  for (;!sd1.begin(SD1_CS);) {
+//  if (!sd1.begin(SD1_CS)) {
+    //sd1.initError("sd1.initialize");
+    //return;
+    delay(sdCardInitializeDelay);
+    sd1.begin(SD1_CS);
   }
   if (!sd1.exists(dirName)) {
     if (!sd1.mkdir(dirName)) {
@@ -321,10 +382,13 @@ void sd1write() {
 //------------------------------------------------------------------------------
 
 void sd2write() {
-
-  if (!sd2.begin(SD2_CS)) {
-    sd2.initError("sd2.initialize");
-    return;
+  
+  for (;!sd2.begin(SD2_CS);) {
+//  if (!sd2.begin(SD2_CS)) {
+//    sd2.initError("sd2.initialize");
+//    return;
+    delay(sdCardInitializeDelay);
+    sd2.begin(SD2_CS);
   }
 
   if (!sd2.exists(dirName)) {
@@ -455,12 +519,12 @@ void sd2write() {
 //------------------------------------------------------------------------------
 
 void setup() {
-  
+
   Serial.begin(9600);
 
   // Wait for USB Serial
   while (!Serial) {
-    delay(10);
+    ; // wait for serial port to connect. Needed for native USB port only
   }
 
   pinMode(currentRelay, OUTPUT);
@@ -485,7 +549,6 @@ void setup() {
 
   digitalWrite(currentRelay, HIGH);
   digitalWrite(groundRelay, HIGH);
-  delay(250); // allows time for ACDs to start
 
   initializeADCs();
 
@@ -508,7 +571,6 @@ void loop() {
 
     digitalWrite(currentRelay, HIGH);
     digitalWrite(groundRelay, HIGH);
-    delay(250); // allows time for ACDs to start
 
     measurements();
 
@@ -520,6 +582,8 @@ void loop() {
     sd1write();
     sd2write();
 
-    Serial.println("Measurements done.");
+    Serial.print(measurementRoundCounter);
+
+    Serial.println(" measurements per channel.");
   }
 }
