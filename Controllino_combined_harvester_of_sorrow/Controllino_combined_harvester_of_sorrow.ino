@@ -23,7 +23,7 @@ Adafruit_ADS1115 ads3(0x4B);
 
 unsigned long startShutDownPeriod = 0;
 
-const unsigned long shutDownPeriod = 1000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 4000; // in milliseconds, how long to power off ADCs between measurement periods
 
 const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
@@ -50,12 +50,13 @@ char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char t
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char dirName[7]; // space for /YY-MM, plus the null char terminator
 
-uint16_t thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
-uint8_t thisMonth; // = Controllino_GetMonth();
-uint8_t thisDay; // = Controllino_GetDay();
-uint8_t thisHour; // = Controllino_GetHour();
-uint8_t thisMinute; // = Controllino_GetMinute();
-uint8_t thisSecond; // = Controllino_GetSecond();
+uint16_t dateYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
+int8_t thisYear; // = Controllino_GetYear();
+int8_t thisMonth; // = Controllino_GetMonth();
+int8_t thisDay; // = Controllino_GetDay();
+int8_t thisHour; // = Controllino_GetHour();
+int8_t thisMinute; // = Controllino_GetMinute();
+int8_t thisSecond; // = Controllino_GetSecond();
 
 //------------------------------------------------------------------------------
 // print error msg, any SD error codes, and halt.
@@ -79,33 +80,48 @@ void initializeADCs() {
 //------------------------------------------------------------------------------
 
 void getDateAndTime() {
-  thisYear = 2000 + Controllino_GetYear();
+  //Serial.println("begin getDateAndTime()");
+  
+  thisYear = Controllino_GetYear();
   thisMonth = Controllino_GetMonth();
   thisDay = Controllino_GetDay();
   thisHour = Controllino_GetHour();
   thisMinute = Controllino_GetMinute();
   thisSecond = Controllino_GetSecond();
 
-  sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+  dateYear = thisYear + 2000;
+  
+  sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+  sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
+  sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
+  
 }
 
 //------------------------------------------------------------------------------
 
-void getMeasurementfileName() {
-  thisMonth = Controllino_GetMonth();
-  thisDay = Controllino_GetDay();
-  sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
-}
+//void getMeasurementfileName() {
+//  //Serial.println("begin getMeasurementfileName()");
+//  
+//  //thisMonth = Controllino_GetMonth();
+//  //thisDay = Controllino_GetDay();
+//  sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
+//}
 
-void getDirName() {
-  thisYear = Controllino_GetYear();
-  thisMonth = Controllino_GetMonth();
-  sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
-}
+//------------------------------------------------------------------------------
+
+//void getDirName() {
+//  //Serial.println("begin getDirName()");
+//  
+//  //thisYear = Controllino_GetYear();
+//  //thisMonth = Controllino_GetMonth();
+//  sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
+//}
 
 //------------------------------------------------------------------------------
 
 void measurements() {
+//  Serial.println("begin measurements()");
+  
   unsigned long measurementRoundStartMillis = 0;
   measurementRoundCounter = 0; // moved to global
 
@@ -241,11 +257,13 @@ void measurements() {
   measurementRoundAverage31 /= measurementRoundCounter;
   measurementRoundAverage32 /= measurementRoundCounter;
   measurementRoundAverage33 /= measurementRoundCounter;
+//  Serial.print("end measurements()");
 }
 
 //------------------------------------------------------------------------------
 
 void sd1write() {
+//  Serial.println("begin sd1write()");
 
   for (;!sd1.begin(SD1_CS);) {
 //  if (!sd1.begin(SD1_CS)) {
@@ -382,6 +400,7 @@ void sd1write() {
 //------------------------------------------------------------------------------
 
 void sd2write() {
+//  Serial.println("begin sd2write()");
   
   for (;!sd2.begin(SD2_CS);) {
 //  if (!sd2.begin(SD2_CS)) {
@@ -534,8 +553,8 @@ void setup() {
 
   Controllino_RTC_init();
   getDateAndTime();
-  getDirName();
-  getMeasurementfileName();
+//  getDirName();
+//  getMeasurementfileName();
   Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
 
   int n;
@@ -562,12 +581,11 @@ void setup() {
 //------------------------------------------------------------------------------
 
 void loop() {
+//  Serial.print("begin loop()");
 
   while (millis() - startShutDownPeriod >= shutDownPeriod) {
 
     getDateAndTime();
-    getDirName();
-    getMeasurementfileName();
 
     digitalWrite(currentRelay, HIGH);
     digitalWrite(groundRelay, HIGH);
@@ -575,15 +593,13 @@ void loop() {
     measurements();
 
     startShutDownPeriod = millis();
-
+       
     digitalWrite(currentRelay, LOW);
     digitalWrite(groundRelay, LOW);
 
     sd1write();
     sd2write();
 
-    Serial.print(measurementRoundCounter);
-
-    Serial.println(" measurements per channel.");
   }
+//  Serial.print("...end loop()");
 }
