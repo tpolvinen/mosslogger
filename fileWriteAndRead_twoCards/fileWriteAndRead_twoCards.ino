@@ -61,22 +61,19 @@ void getDirName() {
   sprintf(dirName, ("/%02d-%02d"), dirYear, dirMonth);
 }
 
+
 void sd1run() {
+
   if (!sd1.begin(SD1_CS)) {
     sd1.initError("sd1.initialize");
     return;
   }
-  Serial.println("initialization 1 done.");
-
   if (!sd1.exists(dirName)) {
     if (!sd1.mkdir(dirName)) {
       sd1.errorExit("sd1.mkdir");
     }
   }
-  Serial.println(F("-------sd1--------"));
-  sd1.ls();
-  Serial.println(F("------------------"));
-  
+
   // make /dirName the default directory for sd1
   if (!sd1.chdir(dirName)) {
     sd1.errorExit("sd1.chdir");
@@ -87,27 +84,13 @@ void sd1run() {
     sd1.errorExit("open file1");
   }
 
-  Serial.println(F("------dir1-------"));
-  sd1.ls();
-  Serial.println(F("------------------"));
-  
-  Serial.print("1 Writing to file1...");
-  file1.println(logfileName);
+  file1.print(logfileName);
+  file1.print(",");
+  file1.print(dateAndTimeData);
+  file1.print(",");
+  file1.println("chillhop");
 
   file1.close();
-  Serial.println("1 done.");
-
-  //reopen the files and read them
-
-  file1.open (logfileName, O_READ);
-  Serial.println("1 Reading file1");
-  while (file1.available()) {
-    Serial.write(file1.read());
-  }
-  
-  file1.close();
-
-  Serial.println("1 done, moving on...");
 
 }
 
@@ -117,17 +100,13 @@ void sd2run() {
     sd2.initError("sd2.initialize");
     return;
   }
-  Serial.println("initialization 2 done.");
 
   if (!sd2.exists(dirName)) {
     if (!sd2.mkdir(dirName)) {
       sd2.errorExit("sd2.mkdir");
     }
   }
-  Serial.println(F("-------sd2--------"));
-  sd2.ls();
-  Serial.println(F("------------------"));
-  
+
   // make /dirName the default directory for sd2
   if (!sd2.chdir(dirName)) {
     sd2.errorExit("sd2.chdir");
@@ -138,28 +117,14 @@ void sd2run() {
     sd2.errorExit("open file2");
   }
 
-  Serial.println(F("------dir2-------"));
-  sd2.ls();
-  Serial.println(F("------------------"));
-  
-  Serial.print("2 Writing to file2...");
-  file2.println(logfileName);
+  file2.print(logfileName);
+  file2.print(",");
+  file2.print(dateAndTimeData);
+  file2.print(",");
+  file2.println("turboLover");
 
   file2.close();
-  Serial.println("2 done.");
 
-  //reopen the files and read them
-
-  file2.open (logfileName, O_READ);
-  Serial.println("2 Reading file2");
-  while (file2.available()) {
-    Serial.write(file2.read());
-  }
-  
-  file2.close();
-
-  Serial.println("2 done, moving on...");
-  
 }
 
 void setup() {
@@ -176,28 +141,41 @@ void setup() {
   getDateAndTime();
   getDirName();
   getLogFileName();
-  Serial.println((char*)dateAndTimeData);
+  Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
 
   int n;
 
   Serial.print("Date: "); n = Controllino_GetYear(); Serial.print(n);
   Serial.print("-"); n = Controllino_GetMonth(); Serial.print(n);
   Serial.print("-"); n = Controllino_GetDay(); Serial.println(n);
-  Serial.print(" Time: "); n = Controllino_GetHour(); Serial.print(n);
+  Serial.print("Time: "); n = Controllino_GetHour(); Serial.print(n);
   Serial.print(":"); n = Controllino_GetMinute(); Serial.print(n);
   Serial.print(":"); n = Controllino_GetSecond(); Serial.println(n);
 
-  sd1run();
+  static uint8_t nope = 10;
+  for (int i = 0; i < nope; i++) {
+    getDateAndTime();
+    getDirName();
+    getLogFileName();
 
-  //digitalWrite(SD1_CS, HIGH);
-  //digitalWrite(SD2_CS, LOW);
 
-  sd2run();
 
-  sd1run();
+    unsigned long time0 = micros();
+    sd1run();
+    unsigned long time1 = micros() - time0;
+    time0 = micros();
+    sd2run();
+    unsigned long time2 = micros() - time0;
 
-  sd2run();
+    Serial.print("micros for sd1run = "); Serial.println(time1);
+    Serial.print("micros for sd2run = "); Serial.println(time2);
+  }
+
 }
 
-void loop()
-{}
+void loop() {
+
+
+
+
+}
