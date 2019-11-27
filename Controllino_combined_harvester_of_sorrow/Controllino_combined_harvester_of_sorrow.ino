@@ -185,6 +185,8 @@ void measurements() {
     //    long max - int16_t max = 2147450880
     //    if (measurementRoundAverage00 > 2147450880L) { break; }
     // ...so the measurements stop if the added values become too big and overflow is imminent.
+    // 65538 * 32767 = 2,147,483,647 -> 65538 / 7 = 9362 seconds, if seven readings per second
+    // -> 156 minutes = 2.6 hours max (measurement period)
 
     if (measurementRoundAverage00 > 2147450880L) {
       break;
@@ -592,6 +594,8 @@ void relayTimeBufferTimer() {
 
 void setup() {
 
+  wdt_disable();  // Disable the watchdog and wait for more than 8 seconds (8 sec wait in the sdcard waiting loop)
+  delay(9000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_250MS);
 
   Serial.begin(9600);
