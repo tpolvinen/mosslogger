@@ -10,6 +10,8 @@
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 
+#include <avr/wdt.h>
+
 //------------------------------------------------------------------------------
 
 Adafruit_ADS1115 ads0(0x48);
@@ -31,9 +33,9 @@ unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTim
 const unsigned long relayTimeBuffer = 100; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
 
 unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
-const unsigned long shutDownPeriod = 100; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 10; // in milliseconds, how long to power off ADCs between measurement periods
 
-const unsigned long measurementRoundPeriod = 200; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+const unsigned long measurementRoundPeriod = 10; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
 const int16_t sdCardInitializeDelay = 5000; // in milliseconds, interval between attempts to read sd card if removed
@@ -114,6 +116,8 @@ void getDateAndTime() {
 void measurements() {
   //  Serial.println("begin measurements()");
 
+  wdt_reset();
+
   unsigned long measurementRoundStartMillis = 0;
   measurementRoundCounter = 0; // moved to global
 
@@ -130,6 +134,9 @@ void measurements() {
   measurementRoundStartMillis = millis();
 
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
+
+    wdt_reset();
+    
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -258,6 +265,8 @@ void measurements() {
 void sd1write() {
   //  Serial.println("begin sd1write()");
 
+  wdt_reset();
+
   //unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
   //const int16_t sdCardInitializeDelay = 5000; // in milliseconds, how long to wait after failed sd card start (at the beginning of each sd write function).
 
@@ -265,6 +274,9 @@ void sd1write() {
 
 
   for (; !sd1.begin(SD1_CS);) {
+
+    wdt_reset();
+    
     //  if (!sd1.begin(SD1_CS)) {
     //sd1.initError("sd1.initialize");
     //return;
@@ -416,7 +428,12 @@ void sd1write() {
 void sd2write() {
   //  Serial.println("begin sd2write()");
 
+  wdt_reset();
+
   for (; !sd2.begin(SD2_CS);) {
+
+    wdt_reset();
+    
     //  if (!sd2.begin(SD2_CS)) {
     //    sd2.initError("sd2.initialize");
     //    return;
@@ -567,6 +584,9 @@ void relayTimeBufferTimer() {
   startRelayTimeBuffer = millis();
 
   while (millis() < startRelayTimeBuffer + relayTimeBuffer) {
+
+    wdt_reset();
+    
     //wait approx. [relayTimeBuffer] ms
   }
 }
@@ -574,6 +594,8 @@ void relayTimeBufferTimer() {
 //------------------------------------------------------------------------------
 
 void setup() {
+
+  wdt_enable(WDTO_250MS);
 
   Serial.begin(9600);
 
@@ -624,6 +646,8 @@ void setup() {
 void loop() {
   //  Serial.print("begin loop()");
 
+  wdt_reset();
+
   while (millis() - startShutDownPeriod >= shutDownPeriod) {
 
     if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
@@ -636,8 +660,6 @@ void loop() {
     //digitalWrite(adcCurrent, HIGH);
 
     measurements();
-    
-    //relayTimeBufferTimer();
 
     startShutDownPeriod = millis();
 
@@ -656,19 +678,4 @@ void loop() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Line 666!
+// https://circuits4you.com/2018/01/24/tutorial-on-arduino-watchdog-timer-setup/
