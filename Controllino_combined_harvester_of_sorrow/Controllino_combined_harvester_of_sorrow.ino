@@ -38,7 +38,7 @@ const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to powe
 const unsigned long measurementRoundPeriod = 10000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
-const int16_t sdCardInitializeDelay = 5000; // in milliseconds, interval between attempts to read sd card if removed
+const int16_t sdCardInitializeDelay = 1000; // in milliseconds, interval between attempts to read sd card if removed
 
 
 int16_t measurementRoundCounter = 0;
@@ -277,7 +277,7 @@ void sd1write() {
   for (; !sd1.begin(SD1_CS);) {
 
     wdt_disable();
-    wdt_enable(WDTO_8S);
+    wdt_enable(WDTO_2S);
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -432,7 +432,7 @@ void sd2write() {
   for (; !sd2.begin(SD2_CS);) {
 
     wdt_disable();
-    wdt_enable(WDTO_8S);
+    wdt_enable(WDTO_2S);
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -594,8 +594,8 @@ void relayTimeBufferTimer() {
 
 void setup() {
 
-  wdt_disable();  // Disable the watchdog and wait for more than 8 seconds (8 sec wait in the sdcard waiting loop)
-  delay(9000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
+  wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
+  delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_250MS);
 
   Serial.begin(9600);
