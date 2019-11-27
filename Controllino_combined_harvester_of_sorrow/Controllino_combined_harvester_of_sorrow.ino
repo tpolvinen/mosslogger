@@ -33,9 +33,9 @@ unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTim
 const unsigned long relayTimeBuffer = 100; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
 
 unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
-const unsigned long shutDownPeriod = 10; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to power off ADCs between measurement periods
 
-const unsigned long measurementRoundPeriod = 10; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+const unsigned long measurementRoundPeriod = 10000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
 const int16_t sdCardInitializeDelay = 5000; // in milliseconds, interval between attempts to read sd card if removed
@@ -136,7 +136,7 @@ void measurements() {
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
 
     wdt_reset();
-    
+
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -272,22 +272,19 @@ void sd1write() {
 
 
 
-
   for (; !sd1.begin(SD1_CS);) {
 
-    wdt_reset();
-    
-    //  if (!sd1.begin(SD1_CS)) {
-    //sd1.initError("sd1.initialize");
-    //return;
-    //    startsdCardInitializeDelay = millis();
-    //    if ( millis () - startsdCardInitializeDelay >= sdCardInitializeDelay) {
-    //      sd1.begin(SD1_CS);
-    //      startsdCardInitializeDelay = millis();
+    wdt_disable();
+    wdt_enable(WDTO_8S);
+
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
       startsdCardInitializeDelay = millis();
     }
+    
+    wdt_disable();
+    wdt_enable(WDTO_250MS);
+    
   }
 
   if (!sd1.exists(dirName)) {
@@ -432,17 +429,17 @@ void sd2write() {
 
   for (; !sd2.begin(SD2_CS);) {
 
-    wdt_reset();
-    
-    //  if (!sd2.begin(SD2_CS)) {
-    //    sd2.initError("sd2.initialize");
-    //    return;
-    //    delay(sdCardInitializeDelay);
-    //    sd2.begin(SD2_CS);
+    wdt_disable();
+    wdt_enable(WDTO_8S);
+
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
       startsdCardInitializeDelay = millis();
     }
+    
+    wdt_disable();
+    wdt_enable(WDTO_250MS);
+    
   }
 
   if (!sd2.exists(dirName)) {
@@ -586,7 +583,7 @@ void relayTimeBufferTimer() {
   while (millis() < startRelayTimeBuffer + relayTimeBuffer) {
 
     wdt_reset();
-    
+
     //wait approx. [relayTimeBuffer] ms
   }
 }
