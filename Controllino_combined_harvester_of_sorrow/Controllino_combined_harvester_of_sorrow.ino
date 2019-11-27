@@ -1,6 +1,7 @@
 
 
 // This test file is a sandbox for testing combined ADC timing and two SD card data saving
+// Actually, moving on from sandbox to development proper.
 
 
 #include <SPI.h>
@@ -21,13 +22,22 @@ Adafruit_ADS1115 ads3(0x4B);
 #define currentRelay CONTROLLINO_R0
 #define groundRelay CONTROLLINO_R1
 
-unsigned long startShutDownPeriod = 0;
+//#define adcCurrent CONTROLLINO_D0
 
-const unsigned long shutDownPeriod = 9000; // in milliseconds, how long to power off ADCs between measurement periods
+unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
+const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
 
-const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTimeBuffer
+const unsigned long relayTimeBuffer = 100; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
 
-int16_t sdCardInitializeDelay = 5000; // in milliseconds, how long to wait after failed sd card start (at the beginning of each sd write function).
+unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
+const unsigned long shutDownPeriod = 100; // in milliseconds, how long to power off ADCs between measurement periods
+
+const unsigned long measurementRoundPeriod = 200; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+
+unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
+const int16_t sdCardInitializeDelay = 5000; // in milliseconds, interval between attempts to read sd card if removed
+
 
 int16_t measurementRoundCounter = 0;
 
@@ -81,7 +91,7 @@ void initializeADCs() {
 
 void getDateAndTime() {
   //Serial.println("begin getDateAndTime()");
-  
+
   thisYear = Controllino_GetYear();
   thisMonth = Controllino_GetMonth();
   thisDay = Controllino_GetDay();
@@ -90,40 +100,20 @@ void getDateAndTime() {
   thisSecond = Controllino_GetSecond();
 
   dateYear = thisYear + 2000;
-  
+
   sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
-  delay(10);
+  //  delay(10);
   sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
-  delay(10);
+  //  delay(10);
   sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
-  delay(10);
+  //  delay(10);
 }
 
 //------------------------------------------------------------------------------
 
-//void getMeasurementfileName() {
-//  //Serial.println("begin getMeasurementfileName()");
-//  
-//  //thisMonth = Controllino_GetMonth();
-//  //thisDay = Controllino_GetDay();
-//  sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
-//}
-
-//------------------------------------------------------------------------------
-
-//void getDirName() {
-//  //Serial.println("begin getDirName()");
-//  
-//  //thisYear = Controllino_GetYear();
-//  //thisMonth = Controllino_GetMonth();
-//  sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
-//}
-
-//------------------------------------------------------------------------------
-
 void measurements() {
-//  Serial.println("begin measurements()");
-  
+  //  Serial.println("begin measurements()");
+
   unsigned long measurementRoundStartMillis = 0;
   measurementRoundCounter = 0; // moved to global
 
@@ -259,21 +249,35 @@ void measurements() {
   measurementRoundAverage31 /= measurementRoundCounter;
   measurementRoundAverage32 /= measurementRoundCounter;
   measurementRoundAverage33 /= measurementRoundCounter;
-//  Serial.print("end measurements()");
+
+  //  Serial.print("end measurements()");
 }
 
 //------------------------------------------------------------------------------
 
 void sd1write() {
-//  Serial.println("begin sd1write()");
+  //  Serial.println("begin sd1write()");
 
-  for (;!sd1.begin(SD1_CS);) {
-//  if (!sd1.begin(SD1_CS)) {
+  //unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
+  //const int16_t sdCardInitializeDelay = 5000; // in milliseconds, how long to wait after failed sd card start (at the beginning of each sd write function).
+
+
+
+
+  for (; !sd1.begin(SD1_CS);) {
+    //  if (!sd1.begin(SD1_CS)) {
     //sd1.initError("sd1.initialize");
     //return;
-    delay(sdCardInitializeDelay);
-    sd1.begin(SD1_CS);
+    //    startsdCardInitializeDelay = millis();
+    //    if ( millis () - startsdCardInitializeDelay >= sdCardInitializeDelay) {
+    //      sd1.begin(SD1_CS);
+    //      startsdCardInitializeDelay = millis();
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
   }
+
   if (!sd1.exists(dirName)) {
     if (!sd1.mkdir(dirName)) {
       sd1.errorExit("sd1.mkdir");
@@ -291,6 +295,14 @@ void sd1write() {
   }
 
   if (! (measurementfile1.print(dateAndTimeData)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundPeriod)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
@@ -402,14 +414,18 @@ void sd1write() {
 //------------------------------------------------------------------------------
 
 void sd2write() {
-//  Serial.println("begin sd2write()");
-  
-  for (;!sd2.begin(SD2_CS);) {
-//  if (!sd2.begin(SD2_CS)) {
-//    sd2.initError("sd2.initialize");
-//    return;
-    delay(sdCardInitializeDelay);
-    sd2.begin(SD2_CS);
+  //  Serial.println("begin sd2write()");
+
+  for (; !sd2.begin(SD2_CS);) {
+    //  if (!sd2.begin(SD2_CS)) {
+    //    sd2.initError("sd2.initialize");
+    //    return;
+    //    delay(sdCardInitializeDelay);
+    //    sd2.begin(SD2_CS);
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
   }
 
   if (!sd2.exists(dirName)) {
@@ -434,6 +450,14 @@ void sd2write() {
 
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundPeriod)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
   }
 
   if (! (measurementfile2.print(measurementRoundAverage00)) ) {
@@ -539,6 +563,16 @@ void sd2write() {
 
 //------------------------------------------------------------------------------
 
+void relayTimeBufferTimer() {
+  startRelayTimeBuffer = millis();
+
+  while (millis() < startRelayTimeBuffer + relayTimeBuffer) {
+    //wait approx. [relayTimeBuffer] ms
+  }
+}
+
+//------------------------------------------------------------------------------
+
 void setup() {
 
   Serial.begin(9600);
@@ -547,16 +581,19 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-
+  //  pinMode(adcCurrent, OUTPUT);
   pinMode(currentRelay, OUTPUT);
   pinMode(groundRelay, OUTPUT);
 
   digitalWrite(SD2_CS, HIGH);
 
   Controllino_RTC_init();
+
   getDateAndTime();
-//  getDirName();
-//  getMeasurementfileName();
+  startGetDateAndTimeInterval = millis();
+
+  //  getDirName();
+  //  getMeasurementfileName();
   Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
 
   int n;
@@ -570,6 +607,7 @@ void setup() {
 
   digitalWrite(currentRelay, HIGH);
   digitalWrite(groundRelay, HIGH);
+  //digitalWrite(adcCurrent, HIGH);
 
   initializeADCs();
 
@@ -577,31 +615,60 @@ void setup() {
 
   digitalWrite(currentRelay, LOW);
   digitalWrite(groundRelay, LOW);
+  //digitalWrite(adcCurrent, LOW);
 
 }
 
 //------------------------------------------------------------------------------
 
 void loop() {
-//  Serial.print("begin loop()");
+  //  Serial.print("begin loop()");
 
   while (millis() - startShutDownPeriod >= shutDownPeriod) {
 
-    getDateAndTime();
+    if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
+      getDateAndTime();
+      startGetDateAndTimeInterval = millis();
+    }
 
     digitalWrite(currentRelay, HIGH);
     digitalWrite(groundRelay, HIGH);
+    //digitalWrite(adcCurrent, HIGH);
 
     measurements();
+    
+    //relayTimeBufferTimer();
 
     startShutDownPeriod = millis();
-       
+
     digitalWrite(currentRelay, LOW);
     digitalWrite(groundRelay, LOW);
+    //digitalWrite(adcCurrent, LOW);
+
 
     sd1write();
     sd2write();
 
   }
-//  Serial.print("...end loop()");
+  //  Serial.print("...end loop()");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Line 666!
