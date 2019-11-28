@@ -24,21 +24,26 @@ Adafruit_ADS1115 ads3(0x4B);
 #define currentRelay CONTROLLINO_R0
 #define groundRelay CONTROLLINO_R1
 
-//#define adcCurrent CONTROLLINO_D0
-
 unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
 const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
 
 unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTimeBuffer
-const unsigned long relayTimeBuffer = 100; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
+const unsigned long relayTimeBuffer = 10; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
+
+//------------------------------------------------------------------------------
 
 unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
-const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 5000; // in milliseconds, how long to power off ADCs between measurement periods
 
-const unsigned long measurementRoundPeriod = 10000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+unsigned long startMeasurementPeriod = 0; // to mark the start of current measurementPeriod
+const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep measuring, looping measurement rounds
+
+const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+
+//------------------------------------------------------------------------------
 
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
-const int16_t sdCardInitializeDelay = 1000; // in milliseconds, interval between attempts to read sd card if removed
+const int16_t sdCardInitializeDelay = 500; // in milliseconds, interval between attempts to read sd card if removed - remember watchdog timer settings!
 
 
 int16_t measurementRoundCounter = 0;
@@ -57,9 +62,14 @@ const uint8_t SD2_CS = 7;   // chip select for sd2 // CONTROLLINO_D5 = pin 7 on 
 
 SdFile measurementfile1;
 SdFile measurementfile2;
+SdFile logfile1;
+SdFile logfile2;
+
+char logMsg[100];
 
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
+char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
 char dirName[7]; // space for /YY-MM, plus the null char terminator
 
 uint16_t dateYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
@@ -104,11 +114,10 @@ void getDateAndTime() {
   dateYear = thisYear + 2000;
 
   sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
-  //  delay(10);
   sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
-  //  delay(10);
+  sprintf(logfileName, ("%02d-%02dlog.csv"), thisMonth, thisDay);
   sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
-  //  delay(10);
+
 }
 
 //------------------------------------------------------------------------------
@@ -188,55 +197,26 @@ void measurements() {
     // 65538 * 32767 = 2,147,483,647 -> 65538 / 7 = 9362 seconds, if seven readings per second
     // -> 156 minutes = 2.6 hours max (measurement period)
 
-    if (measurementRoundAverage00 > 2147450880L) {
+    if (
+      (measurementRoundAverage00 > 2147450880L)
+      && (measurementRoundAverage01 > 2147450880L)
+      && (measurementRoundAverage02 > 2147450880L)
+      && (measurementRoundAverage03 > 2147450880L)
+      && (measurementRoundAverage10 > 2147450880L)
+      && (measurementRoundAverage11 > 2147450880L)
+      && (measurementRoundAverage12 > 2147450880L)
+      && (measurementRoundAverage13 > 2147450880L)
+      && (measurementRoundAverage20 > 2147450880L)
+      && (measurementRoundAverage21 > 2147450880L)
+      && (measurementRoundAverage22 > 2147450880L)
+      && (measurementRoundAverage23 > 2147450880L)
+      && (measurementRoundAverage30 > 2147450880L)
+      && (measurementRoundAverage31 > 2147450880L)
+      && (measurementRoundAverage32 > 2147450880L)
+      && (measurementRoundAverage33 > 2147450880L)
+    ) {
       break;
     }
-    if (measurementRoundAverage01 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage02 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage03 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage10 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage11 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage12 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage13 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage20 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage21 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage22 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage23 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage30 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage31 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage32 > 2147450880L) {
-      break;
-    }
-    if (measurementRoundAverage33 > 2147450880L) {
-      break;
-    }
-
   }
 
   measurementRoundAverage00 /= measurementRoundCounter;
@@ -259,34 +239,23 @@ void measurements() {
   measurementRoundAverage32 /= measurementRoundCounter;
   measurementRoundAverage33 /= measurementRoundCounter;
 
-  //  Serial.print("end measurements()");
 }
 
 //------------------------------------------------------------------------------
 
 void sd1write() {
-  //  Serial.println("begin sd1write()");
 
   wdt_reset();
 
-  //unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
-  //const int16_t sdCardInitializeDelay = 5000; // in milliseconds, how long to wait after failed sd card start (at the beginning of each sd write function).
-
-
-
   for (; !sd1.begin(SD1_CS);) {
 
-    wdt_disable();
-    wdt_enable(WDTO_2S);
+    wdt_reset();
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
       startsdCardInitializeDelay = millis();
     }
-    
-    wdt_disable();
-    wdt_enable(WDTO_250MS);
-    
+
   }
 
   if (!sd1.exists(dirName)) {
@@ -305,6 +274,8 @@ void sd1write() {
     sd1.errorExit("open measurementfile1");
   }
 
+  //-------------------------------------------------------------
+
   if (! (measurementfile1.print(dateAndTimeData)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
@@ -313,13 +284,31 @@ void sd1write() {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundPeriod)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
+//  if (! (measurementfile1.print(measurementPeriod)) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
+//
+//  if (! (measurementfile1.print(",")) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
+//
+//  if (! (measurementfile1.print(measurementRoundPeriod)) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
+//
+//  if (! (measurementfile1.print(",")) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
+//
+//  if (! (measurementfile1.print(shutDownPeriod)) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
+//
+//  if (! (measurementfile1.print(",")) ) {
+//    sd1.errorExit("measurementfile1 writing");
+//  }
 
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
+  //-------------------------------------------------------------
 
   if (! (measurementfile1.print(measurementRoundAverage00)) ) {
     sd1.errorExit("measurementfile1 writing");
@@ -333,7 +322,7 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundAverage01)) ) {
+  if (! (measurementfile1.print(measurementRoundAverage02)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -346,30 +335,7 @@ void sd1write() {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage10)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundAverage11)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundAverage11)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundAverage13)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
+  //-------------------------------------------------------------
 
   if (! (measurementfile1.print(measurementRoundAverage10)) ) {
     sd1.errorExit("measurementfile1 writing");
@@ -383,7 +349,7 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundAverage11)) ) {
+  if (! (measurementfile1.print(measurementRoundAverage12)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -395,6 +361,35 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(measurementRoundAverage20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundAverage21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundAverage22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
 
   if (! (measurementfile1.print(measurementRoundAverage30)) ) {
     sd1.errorExit("measurementfile1 writing");
@@ -408,7 +403,7 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundAverage31)) ) {
+  if (! (measurementfile1.print(measurementRoundAverage32)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -431,17 +426,13 @@ void sd2write() {
 
   for (; !sd2.begin(SD2_CS);) {
 
-    wdt_disable();
-    wdt_enable(WDTO_2S);
+    wdt_reset();
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
       startsdCardInitializeDelay = millis();
     }
-    
-    wdt_disable();
-    wdt_enable(WDTO_250MS);
-    
+
   }
 
   if (!sd2.exists(dirName)) {
@@ -460,6 +451,8 @@ void sd2write() {
     sd2.errorExit("open measurementfile2");
   }
 
+  //-------------------------------------------------------------
+
   if (! (measurementfile2.print(dateAndTimeData)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
@@ -468,13 +461,31 @@ void sd2write() {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundPeriod)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
+//  if (! (measurementfile2.print(measurementPeriod)) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
+//
+//  if (! (measurementfile2.print(",")) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
+//
+//  if (! (measurementfile2.print(measurementRoundPeriod)) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
+//
+//  if (! (measurementfile2.print(",")) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
+//
+//  if (! (measurementfile2.print(shutDownPeriod)) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
+//
+//  if (! (measurementfile2.print(",")) ) {
+//    sd2.errorExit("measurementfile2 writing");
+//  }
 
-  if (! (measurementfile2.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
+  //-------------------------------------------------------------
 
   if (! (measurementfile2.print(measurementRoundAverage00)) ) {
     sd2.errorExit("measurementfile2 writing");
@@ -501,6 +512,8 @@ void sd2write() {
     sd2.errorExit("measurementfile2 writing");
   }
 
+  //-------------------------------------------------------------
+
   if (! (measurementfile2.print(measurementRoundAverage10)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
@@ -526,6 +539,8 @@ void sd2write() {
     sd2.errorExit("measurementfile2 writing");
   }
 
+  //-------------------------------------------------------------
+
   if (! (measurementfile2.print(measurementRoundAverage20)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
@@ -550,6 +565,8 @@ void sd2write() {
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
+
+  //-------------------------------------------------------------
 
   if (! (measurementfile2.print(measurementRoundAverage30)) ) {
     sd2.errorExit("measurementfile2 writing");
@@ -579,6 +596,102 @@ void sd2write() {
 
 //------------------------------------------------------------------------------
 
+void sd1writeLog() {
+
+  wdt_reset();
+
+  for (; !sd1.begin(SD1_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd1
+  if (!sd1.chdir(dirName)) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  //open file within Folder
+  if (!logfile1.open(logfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd1.errorExit("open logfile1");
+  }
+
+  if (! (logfile1.print(dateAndTimeData)) ) {
+    sd1.errorExit("logfile1 writing");
+  }
+
+  if (! (logfile1.print(",")) ) {
+    sd1.errorExit("logfile1 writing");
+  }
+
+  if (! (logfile1.println(logMsg)) ) {
+    sd1.errorExit("logfile1 writing");
+  }
+
+  logfile1.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+void sd2writeLog() {
+
+  wdt_reset();
+
+  for (; !sd2.begin(SD2_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd2
+  if (!sd2.chdir(dirName)) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  //open file within Folder
+  if (!logfile2.open(logfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd2.errorExit("open logfile2");
+  }
+
+  if (! (logfile2.print(dateAndTimeData)) ) {
+    sd2.errorExit("logfile2 writing");
+  }
+
+  if (! (logfile2.print(",")) ) {
+    sd2.errorExit("logfile2 writing");
+  }
+
+  if (! (logfile2.println(logMsg)) ) {
+    sd2.errorExit("logfile2 writing");
+  }
+
+  logfile2.close();
+
+}
+
+//------------------------------------------------------------------------------
+
 void relayTimeBufferTimer() {
   startRelayTimeBuffer = millis();
 
@@ -596,7 +709,7 @@ void setup() {
 
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
-  wdt_enable(WDTO_250MS);
+  wdt_enable(WDTO_2S);
 
   Serial.begin(9600);
 
@@ -615,18 +728,30 @@ void setup() {
   getDateAndTime();
   startGetDateAndTimeInterval = millis();
 
-  //  getDirName();
-  //  getMeasurementfileName();
-  Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
+  sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
 
-  int n;
+  
+//  strcpy(logMsg, "Hello world. I start now.");
+//  strcat(logMsg, ",");
+//  strcat(logMsg, shutDownPeriod);
+//  strcat(logMsg, ",");
+//  strcat(logMsg, measurementPeriod);
+//  strcat(logMsg, ",");
+//  strcat(logMsg, measurementRoundPeriod);
+  
+  sd1writeLog();
+  sd2writeLog();
 
-  Serial.print("Date: "); n = Controllino_GetYear(); Serial.print(n);
-  Serial.print("-"); n = Controllino_GetMonth(); Serial.print(n);
-  Serial.print("-"); n = Controllino_GetDay(); Serial.println(n);
-  Serial.print("Time: "); n = Controllino_GetHour(); Serial.print(n);
-  Serial.print(":"); n = Controllino_GetMinute(); Serial.print(n);
-  Serial.print(":"); n = Controllino_GetSecond(); Serial.println(n);
+//  Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
+//
+//  int n;
+//
+//  Serial.print("Date: "); n = Controllino_GetYear(); Serial.print(n);
+//  Serial.print("-"); n = Controllino_GetMonth(); Serial.print(n);
+//  Serial.print("-"); n = Controllino_GetDay(); Serial.println(n);
+//  Serial.print("Time: "); n = Controllino_GetHour(); Serial.print(n);
+//  Serial.print(":"); n = Controllino_GetMinute(); Serial.print(n);
+//  Serial.print(":"); n = Controllino_GetSecond(); Serial.println(n);
 
   digitalWrite(currentRelay, HIGH);
   digitalWrite(groundRelay, HIGH);
@@ -645,32 +770,35 @@ void setup() {
 //------------------------------------------------------------------------------
 
 void loop() {
-  //  Serial.print("begin loop()");
 
   wdt_reset();
 
   while (millis() - startShutDownPeriod >= shutDownPeriod) {
 
-    if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
-      getDateAndTime();
-      startGetDateAndTimeInterval = millis();
+    startMeasurementPeriod = millis();
+
+    while (millis() - startMeasurementPeriod <= measurementPeriod) {
+
+      if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
+        getDateAndTime();
+        startGetDateAndTimeInterval = millis();
+      }
+
+      digitalWrite(currentRelay, HIGH);
+      digitalWrite(groundRelay, HIGH);
+
+      relayTimeBufferTimer();
+
+      measurements();
+
+      sd1write();
+      sd2write();
     }
-
-    digitalWrite(currentRelay, HIGH);
-    digitalWrite(groundRelay, HIGH);
-    //digitalWrite(adcCurrent, HIGH);
-
-    measurements();
 
     startShutDownPeriod = millis();
 
     digitalWrite(currentRelay, LOW);
     digitalWrite(groundRelay, LOW);
-    //digitalWrite(adcCurrent, LOW);
-
-
-    sd1write();
-    sd2write();
 
   }
   //  Serial.print("...end loop()");
