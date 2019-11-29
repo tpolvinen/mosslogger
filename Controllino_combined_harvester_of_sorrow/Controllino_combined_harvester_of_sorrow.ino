@@ -66,7 +66,7 @@ SdFile logfile1;
 SdFile logfile2;
 
 char logMsg[100];
-char measurementfileHeader[65]; // space for YYYY-MM-DDThh:mm:ss,00,01,02,03,10,11,12,13,20,21,22,23,31,32,33, plus the null char terminator
+char measurementfileHeader[84]; // space for YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3, plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
@@ -741,13 +741,13 @@ void setup() {
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_2S);
-//
-//  Serial.begin(9600);
-//
-//  // Wait for USB Serial
-//  while (!Serial) {
-//    ; // wait for serial port to connect. Needed for native USB port only
-//  }
+
+  Serial.begin(9600);
+
+  // Wait for USB Serial
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
 
   pinMode(currentRelay, OUTPUT);
   pinMode(groundRelay, OUTPUT);
@@ -764,7 +764,7 @@ void setup() {
   sd1writeLog();
   sd2writeLog();
 
-  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,00,01,02,03,10,11,12,13,20,21,22,23,31,32,33"));
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3"));
 
   sd1writeHeader();
   sd2writeHeader();
@@ -778,7 +778,6 @@ void setup() {
 
   digitalWrite(currentRelay, LOW);
   digitalWrite(groundRelay, LOW);
-  //digitalWrite(adcCurrent, LOW);
 
 }
 
