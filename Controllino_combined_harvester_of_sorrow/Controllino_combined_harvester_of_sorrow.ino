@@ -66,7 +66,7 @@ SdFile logfile1;
 SdFile logfile2;
 
 char logMsg[100];
-
+char measurementfileHeader[65]; // space for YYYY-MM-DDThh:mm:ss,00,01,02,03,10,11,12,13,20,21,22,23,31,32,33, plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
@@ -284,30 +284,6 @@ void sd1write() {
     sd1.errorExit("measurementfile1 writing");
   }
 
-//  if (! (measurementfile1.print(measurementPeriod)) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-//
-//  if (! (measurementfile1.print(",")) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-//
-//  if (! (measurementfile1.print(measurementRoundPeriod)) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-//
-//  if (! (measurementfile1.print(",")) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-//
-//  if (! (measurementfile1.print(shutDownPeriod)) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-//
-//  if (! (measurementfile1.print(",")) ) {
-//    sd1.errorExit("measurementfile1 writing");
-//  }
-
   //-------------------------------------------------------------
 
   if (! (measurementfile1.print(measurementRoundAverage00)) ) {
@@ -461,30 +437,6 @@ void sd2write() {
     sd2.errorExit("measurementfile2 writing");
   }
 
-//  if (! (measurementfile2.print(measurementPeriod)) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-//
-//  if (! (measurementfile2.print(",")) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-//
-//  if (! (measurementfile2.print(measurementRoundPeriod)) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-//
-//  if (! (measurementfile2.print(",")) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-//
-//  if (! (measurementfile2.print(shutDownPeriod)) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-//
-//  if (! (measurementfile2.print(",")) ) {
-//    sd2.errorExit("measurementfile2 writing");
-//  }
-
   //-------------------------------------------------------------
 
   if (! (measurementfile2.print(measurementRoundAverage00)) ) {
@@ -596,6 +548,86 @@ void sd2write() {
 
 //------------------------------------------------------------------------------
 
+void sd1writeHeader() {
+
+  wdt_reset();
+
+  for (; !sd1.begin(SD1_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd1
+  if (!sd1.chdir(dirName)) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile1.open(measurementfileName, O_RDWR | O_CREAT)) {
+    sd1.errorExit("open measurementfile1");
+  }
+
+  if (! (measurementfile1.println(measurementfileHeader)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  measurementfile1.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+void sd2writeHeader() {
+
+  wdt_reset();
+
+  for (; !sd2.begin(SD2_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd2
+  if (!sd2.chdir(dirName)) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile2.open(measurementfileName, O_RDWR | O_CREAT)) {
+    sd2.errorExit("open measurementfile2");
+  }
+
+  if (! (measurementfile2.println(measurementfileHeader)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  measurementfile2.close();
+
+}
+
+//------------------------------------------------------------------------------
+
 void sd1writeLog() {
 
   wdt_reset();
@@ -695,11 +727,10 @@ void sd2writeLog() {
 void relayTimeBufferTimer() {
   startRelayTimeBuffer = millis();
 
+  //  wait approx. [relayTimeBuffer] ms
+
   while (millis() < startRelayTimeBuffer + relayTimeBuffer) {
-
     wdt_reset();
-
-    //wait approx. [relayTimeBuffer] ms
   }
 }
 
@@ -710,14 +741,14 @@ void setup() {
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_2S);
+//
+//  Serial.begin(9600);
+//
+//  // Wait for USB Serial
+//  while (!Serial) {
+//    ; // wait for serial port to connect. Needed for native USB port only
+//  }
 
-  Serial.begin(9600);
-
-  // Wait for USB Serial
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
-  //  pinMode(adcCurrent, OUTPUT);
   pinMode(currentRelay, OUTPUT);
   pinMode(groundRelay, OUTPUT);
 
@@ -730,32 +761,16 @@ void setup() {
 
   sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
 
-  
-//  strcpy(logMsg, "Hello world. I start now.");
-//  strcat(logMsg, ",");
-//  strcat(logMsg, shutDownPeriod);
-//  strcat(logMsg, ",");
-//  strcat(logMsg, measurementPeriod);
-//  strcat(logMsg, ",");
-//  strcat(logMsg, measurementRoundPeriod);
-  
   sd1writeLog();
   sd2writeLog();
 
-//  Serial.print("dateAndTimeData char array: "); Serial.println((char*)dateAndTimeData);
-//
-//  int n;
-//
-//  Serial.print("Date: "); n = Controllino_GetYear(); Serial.print(n);
-//  Serial.print("-"); n = Controllino_GetMonth(); Serial.print(n);
-//  Serial.print("-"); n = Controllino_GetDay(); Serial.println(n);
-//  Serial.print("Time: "); n = Controllino_GetHour(); Serial.print(n);
-//  Serial.print(":"); n = Controllino_GetMinute(); Serial.print(n);
-//  Serial.print(":"); n = Controllino_GetSecond(); Serial.println(n);
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,00,01,02,03,10,11,12,13,20,21,22,23,31,32,33"));
+
+  sd1writeHeader();
+  sd2writeHeader();
 
   digitalWrite(currentRelay, HIGH);
   digitalWrite(groundRelay, HIGH);
-  //digitalWrite(adcCurrent, HIGH);
 
   initializeADCs();
 
