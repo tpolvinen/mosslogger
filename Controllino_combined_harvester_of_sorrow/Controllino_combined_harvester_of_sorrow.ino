@@ -1,3 +1,4 @@
+#include <MemoryFree.h>;
 
 
 // This test file is a sandbox for testing combined ADC timing and two SD card data saving
@@ -19,16 +20,17 @@ Adafruit_ADS1115 ads1(0x49);
 Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
-// these control power to ACDs (ADS1115s), need to shut down to avoid heating the samples with thermistors
-// NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementRound()
-#define currentRelay CONTROLLINO_R0
-#define groundRelay CONTROLLINO_R1
+// these control ground connection to voltage dividers in adc channels (thermistors)
+#define ads0Relay CONTROLLINO_R6
+#define ads1Relay CONTROLLINO_R7
+#define ads2Relay CONTROLLINO_R8
+#define ads3Relay CONTROLLINO_R9
 
 unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
 const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
 
 unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTimeBuffer
-const unsigned long relayTimeBuffer = 10; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
+const unsigned long relayTimeBuffer = 20; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
 
 //------------------------------------------------------------------------------
 
@@ -742,15 +744,21 @@ void setup() {
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_2S);
 
-  Serial.begin(9600);
+//    Serial.begin(115200);
+//  
+//    // Wait for USB Serial
+//    while (!Serial) {
+//      ; // wait for serial port to connect. Needed for native USB port only
+//    }
+//  
+//    Serial.print(F("setup() begin: "));
+//  
+//    Serial.println(freeMemory(), DEC);
 
-  // Wait for USB Serial
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
-
-  pinMode(currentRelay, OUTPUT);
-  pinMode(groundRelay, OUTPUT);
+  pinMode(ads0Relay, OUTPUT);
+  pinMode(ads1Relay, OUTPUT);
+  pinMode(ads2Relay, OUTPUT);
+  pinMode(ads3Relay, OUTPUT);
 
   digitalWrite(SD2_CS, HIGH);
 
@@ -769,15 +777,13 @@ void setup() {
   sd1writeHeader();
   sd2writeHeader();
 
-  digitalWrite(currentRelay, HIGH);
-  digitalWrite(groundRelay, HIGH);
-
   initializeADCs();
 
-  startShutDownPeriod = millis() - shutDownPeriod + 1000;
+  startShutDownPeriod = millis() - shutDownPeriod;// + 1000; // start shutdownperiod, but start measurements in loop() faster
 
-  digitalWrite(currentRelay, LOW);
-  digitalWrite(groundRelay, LOW);
+  //Serial.print(F("setup() end: "));
+
+  //Serial.println(freeMemory(), DEC);
 
 }
 
@@ -787,7 +793,14 @@ void loop() {
 
   wdt_reset();
 
-  while (millis() - startShutDownPeriod >= shutDownPeriod) {
+  while (millis() - startShutDownPeriod >= shutDownPeriod - relayTimeBuffer) {
+
+    digitalWrite(ads0Relay, HIGH);
+    digitalWrite(ads1Relay, HIGH);
+    digitalWrite(ads2Relay, HIGH);
+    digitalWrite(ads3Relay, HIGH);
+
+    relayTimeBufferTimer();
 
     startMeasurementPeriod = millis();
 
@@ -798,21 +811,21 @@ void loop() {
         startGetDateAndTimeInterval = millis();
       }
 
-      digitalWrite(currentRelay, HIGH);
-      digitalWrite(groundRelay, HIGH);
+      //...relays were here
 
-      relayTimeBufferTimer();
-
-      measurements();
+      measurements(); // Note: looping in measurements() for measurementRoundPeriod
 
       sd1write();
       sd2write();
+
     }
 
     startShutDownPeriod = millis();
 
-    digitalWrite(currentRelay, LOW);
-    digitalWrite(groundRelay, LOW);
+    digitalWrite(ads0Relay, LOW);
+    digitalWrite(ads1Relay, LOW);
+    digitalWrite(ads2Relay, LOW);
+    digitalWrite(ads3Relay, LOW);
 
   }
   //  Serial.print("...end loop()");
