@@ -35,7 +35,7 @@ const unsigned long relayTimeBuffer = 20; // in milliseconds, interval between t
 //------------------------------------------------------------------------------
 
 unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
-const unsigned long shutDownPeriod = 5000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 1000; // in milliseconds, how long to power off ADCs between measurement periods
 
 unsigned long startMeasurementPeriod = 0; // to mark the start of current measurementPeriod
 const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep measuring, looping measurement rounds
@@ -45,7 +45,7 @@ const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long
 //------------------------------------------------------------------------------
 
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
-const int16_t sdCardInitializeDelay = 500; // in milliseconds, interval between attempts to read sd card if removed - remember watchdog timer settings!
+const int16_t sdCardInitializeDelay = 200; // in milliseconds, interval between attempts to read sd card if removed - remember watchdog timer settings!
 
 
 int16_t measurementRoundCounter = 0;
@@ -54,6 +54,13 @@ long measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRo
 long measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
 long measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
 long measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+
+float voltageScaleFactor = 0.1875; // mV scale factor when using 2/3x gain, reference voltage +/- 6.144V divided by 15 bit resolution 32767 --> 1 bit = 0.1875mV (default)
+
+float measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
+float measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
+float measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
+float measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
 
 //------------------------------------------------------------------------------
 
@@ -68,7 +75,7 @@ SdFile logfile1;
 SdFile logfile2;
 
 char logMsg[100];
-char measurementfileHeader[84]; // space for YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3, plus the null char terminator
+char measurementfileHeader[132]; // space for YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3, plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
@@ -136,6 +143,12 @@ void measurements() {
   measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
   measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
   measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+
+  measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
+  measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
+  measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
+  measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
+
 
   int16_t measurement00, measurement01, measurement02, measurement03;
   int16_t measurement10, measurement11, measurement12, measurement13;
@@ -241,6 +254,26 @@ void measurements() {
   measurementRoundAverage32 /= measurementRoundCounter;
   measurementRoundAverage33 /= measurementRoundCounter;
 
+  measurementRoundVoltage00 = (measurementRoundAverage00 * voltageScaleFactor);
+  measurementRoundVoltage01 = (measurementRoundAverage01 * voltageScaleFactor);
+  measurementRoundVoltage02 = (measurementRoundAverage02 * voltageScaleFactor);
+  measurementRoundVoltage03 = (measurementRoundAverage03 * voltageScaleFactor);
+
+  measurementRoundVoltage10 = (measurementRoundAverage10 * voltageScaleFactor);
+  measurementRoundVoltage11 = (measurementRoundAverage11 * voltageScaleFactor);
+  measurementRoundVoltage12 = (measurementRoundAverage12 * voltageScaleFactor);
+  measurementRoundVoltage13 = (measurementRoundAverage13 * voltageScaleFactor);
+
+  measurementRoundVoltage20 = (measurementRoundAverage20 * voltageScaleFactor);
+  measurementRoundVoltage21 = (measurementRoundAverage21 * voltageScaleFactor);
+  measurementRoundVoltage22 = (measurementRoundAverage22 * voltageScaleFactor);
+  measurementRoundVoltage23 = (measurementRoundAverage23 * voltageScaleFactor);
+
+  measurementRoundVoltage30 = (measurementRoundAverage30 * voltageScaleFactor);
+  measurementRoundVoltage31 = (measurementRoundAverage31 * voltageScaleFactor);
+  measurementRoundVoltage32 = (measurementRoundAverage32 * voltageScaleFactor);
+  measurementRoundVoltage33 = (measurementRoundAverage33 * voltageScaleFactor);
+
 }
 
 //------------------------------------------------------------------------------
@@ -249,7 +282,7 @@ void sd1write() {
 
   wdt_reset();
 
-  for (; !sd1.begin(SD1_CS);) {
+  for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
 
@@ -294,26 +327,53 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundAverage01)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundAverage02)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundAverage03)) ) {
+  if (! (measurementfile1.print(measurementRoundVoltage00)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  //-------------------------------------------------------------
+  if (! (measurementfile1.print(measurementRoundAverage01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.print(measurementRoundVoltage01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.print(measurementRoundVoltage02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.print(measurementRoundVoltage03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+   //-------------------------------------------------------------
 
   if (! (measurementfile1.print(measurementRoundAverage10)) ) {
     sd1.errorExit("measurementfile1 writing");
@@ -321,19 +381,46 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+  if (! (measurementfile1.print(measurementRoundVoltage10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage11)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+    if (! (measurementfile1.print(measurementRoundVoltage11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage12)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+    if (! (measurementfile1.print(measurementRoundVoltage12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.print(measurementRoundVoltage13)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -348,19 +435,46 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+  if (! (measurementfile1.print(measurementRoundVoltage20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage21)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+    if (! (measurementfile1.print(measurementRoundVoltage21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage22)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+    if (! (measurementfile1.print(measurementRoundVoltage22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.print(measurementRoundVoltage23)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -368,26 +482,53 @@ void sd1write() {
   }
 
   //-------------------------------------------------------------
-
+  
   if (! (measurementfile1.print(measurementRoundAverage30)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+  if (! (measurementfile1.print(measurementRoundVoltage30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage31)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
+    if (! (measurementfile1.print(measurementRoundVoltage31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
   if (! (measurementfile1.print(measurementRoundAverage32)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.println(measurementRoundAverage33)) ) {
+    if (! (measurementfile1.print(measurementRoundVoltage32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage33)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+    if (! (measurementfile1.println(measurementRoundVoltage33)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
@@ -396,6 +537,7 @@ void sd1write() {
 }
 
 //------------------------------------------------------------------------------
+
 
 void sd2write() {
   //  Serial.println("begin sd2write()");
@@ -742,18 +884,18 @@ void setup() {
 
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
-  wdt_enable(WDTO_2S);
+  wdt_enable(WDTO_250MS);
 
-//    Serial.begin(115200);
-//  
-//    // Wait for USB Serial
-//    while (!Serial) {
-//      ; // wait for serial port to connect. Needed for native USB port only
-//    }
-//  
-//    Serial.print(F("setup() begin: "));
-//  
-//    Serial.println(freeMemory(), DEC);
+  //    Serial.begin(115200);
+  //
+  //    // Wait for USB Serial
+  //    while (!Serial) {
+  //      ; // wait for serial port to connect. Needed for native USB port only
+  //    }
+  //
+  //    Serial.print(F("setup() begin: "));
+  //
+  //    Serial.println(freeMemory(), DEC);
 
   pinMode(ads0Relay, OUTPUT);
   pinMode(ads1Relay, OUTPUT);
@@ -772,7 +914,8 @@ void setup() {
   sd1writeLog();
   sd2writeLog();
 
-  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3"));
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,mV,0-1,mV,0-2,mV,0-3,mV,1-0,mV,1-1,mV,1-2,mV,1-3,mV,2-0,mV,2-1,mV,2-2,mV,2-3,mV,3-0,mV,3-1,mV,3-2,mV,3-3,mV"));
+  // YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3"));
 
   sd1writeHeader();
   sd2writeHeader();
