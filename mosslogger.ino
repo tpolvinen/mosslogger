@@ -1,121 +1,106 @@
-// Super simple SD card logging, with relay controlled sensor and ADC on/off.
-// With normal SD.h library and one SD card, readings saved only 173.2 kB, from 2019-11-08T20:38:23 to 2019-11-08T21:28:17
-
 
 #include <SPI.h>
-// #include <SD.h>
+#include <SdFat.h>
 #include <Controllino.h> // Usage of CONTROLLINO library allows you to use CONTROLLINO_xx aliases in your sketch.
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 
-// include SdFat library w/ Arduino IDE gives these
-#include <SdFatConfig.h>
-#include <sdios.h>
-#include <FreeStack.h>
-#include <MinimumSerial.h>
-#include <SdFat.h>
-#include <BlockDriver.h>
-#include <SysCall.h>
+#include <avr/wdt.h>
+
+//------------------------------------------------------------------------------
 
 Adafruit_ADS1115 ads0(0x48);
 Adafruit_ADS1115 ads1(0x49);
 Adafruit_ADS1115 ads2(0x4A);
 Adafruit_ADS1115 ads3(0x4B);
 
-// these control power to ACDs (ADS1115s), need to shut down to avoid heating the samples with thermistors
-// NOTE: for some reason, using just one relay to cut current causes the Controllino/code to get stuck on first reading in measurementRound()
-#define currentRelay CONTROLLINO_R0
-#define groundRelay CONTROLLINO_R1
+// these control ground connection to voltage dividers in adc channels (thermistors)
+#define ads0Relay CONTROLLINO_R6
+#define ads1Relay CONTROLLINO_R7
+#define ads2Relay CONTROLLINO_R8
+#define ads3Relay CONTROLLINO_R9
+
+unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
+const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
+
+unsigned long startRelayTimeBuffer = 0; // to mark the start of current relayTimeBuffer
+const unsigned long relayTimeBuffer = 20; // in milliseconds, interval between turning relays on and starting measurements(), in effect giving ADCs time to start
+
+//------------------------------------------------------------------------------
+
+unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
+const unsigned long shutDownPeriod = 5000; // in milliseconds, how long to power off ADCs between measurement periods
+
+unsigned long startMeasurementPeriod = 0; // to mark the start of current measurementPeriod
+const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep measuring, looping measurement rounds
+
+const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+
+//------------------------------------------------------------------------------
+
+unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
+const int16_t sdCardInitializeDelay = 200; // in milliseconds, interval between attempts to read sd card if removed - remember watchdog timer settings!
+
+
+int16_t measurementRoundCounter = 0;
+
+signed long measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRoundAverage02 = 0, measurementRoundAverage03 = 0;
+signed long measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
+signed long measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
+signed long measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+
+float measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
+float measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
+float measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
+float measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
+
+float adcRange = 25970.8; //25974.4;//25967.16; //25959.96; //25956.36; //25952.76; //25945.52; //25865.87; //25960; // 2665.85; // 32767 / 6.144v * 5v = 2665.85
+
+#define THERMISTORNOMINAL 10000  // resistance at 25 degrees C
+#define TEMPERATURENOMINAL 25  // temp. for nominal resistance (almost always 25 C)
+#define BCOEFFICIENT 3976  // The beta coefficient of the thermistor (usually 3000-4000)
+#define SERIESRESISTOR 10000  // the value of the 'other' resistor
+
+float measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
+float measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
+float measurementRoundTemperatureC20 = 0.0, measurementRoundTemperatureC21 = 0.0, measurementRoundTemperatureC22 = 0.0, measurementRoundTemperatureC23 = 0.0;
+float measurementRoundTemperatureC30 = 0.0, measurementRoundTemperatureC31 = 0.0, measurementRoundTemperatureC32 = 0.0, measurementRoundTemperatureC33 = 0.0;
+
+//------------------------------------------------------------------------------
 
 SdFat sd1;
 const uint8_t SD1_CS = 53;  // chip select for sd1
 SdFat sd2;
 const uint8_t SD2_CS = 7;   // chip select for sd2 // CONTROLLINO_D5 = pin 7 on Arduino MEGA
 
-//------------------------------------------------------------------------------
-// print error msg, any SD error codes, and halt.
-// store messages in flash
-#define errorExit(msg) errorHalt(F(msg))
-#define initError(msg) initErrorHalt(F(msg))
-//------------------------------------------------------------------------------
+SdFile measurementfile1;
+SdFile measurementfile2;
+SdFile logfile1;
+SdFile logfile2;
 
-// These are used in getTimeAndDate()
+char logMsg[100];
+char measurementfileHeader[132]; // space for YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3, plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
-char logfileName[13]; // space for DDHHMMSS.csv, plus the null char terminator
-uint8_t thisYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getTimeAndDate()
-uint8_t thisMonth; // = Controllino_GetMonth();
-uint8_t thisDay; // = Controllino_GetDay();
-uint8_t thisHour; // = Controllino_GetHour();
-uint8_t thisMinute; // = Controllino_GetMinute();
-uint8_t thisSecond; // = Controllino_GetSecond();
+char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
+char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
+char dirName[7]; // space for /YY-MM, plus the null char terminator
 
-uint8_t logDay; // = Controllino_GetDay();
-uint8_t logHour; // = Controllino_GetHour();
-uint8_t logMinute; // = Controllino_GetMinute();
-uint8_t logSecond; // = Controllino_GetSecond();
+uint16_t dateYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
+int8_t thisYear; // = Controllino_GetYear();
+int8_t thisMonth; // = Controllino_GetMonth();
+int8_t thisDay; // = Controllino_GetDay();
+int8_t thisHour; // = Controllino_GetHour();
+int8_t thisMinute; // = Controllino_GetMinute();
+int8_t thisSecond; // = Controllino_GetSecond();
 
-File logfile1;
-File logfile2;
-
-// uint8_t previousLogFileDay = 0; // Stores the value of RTC day when logFile was started, i.e. current day.
-
-// unsigned long startMillis = 0;
-// unsigned long currentMillis = 0;
-
-unsigned long startShutDownPeriod = 0;
-
-//const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep making measurement rounds
-const unsigned long shutDownPeriod = 10000; // in milliseconds, how long to power off ADCs between measurement periods
-
-const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages and writing the new data to the file on SD card.
-
-//void error(char *str) {
-//  Serial.print("error: ");
-//  Serial.println(str);
-//  while (1);
-//}
 //------------------------------------------------------------------------------
 // print error msg, any SD error codes, and halt.
 // store messages in flash
 #define errorExit(msg) errorHalt(F(msg))
 #define initError(msg) initErrorHalt(F(msg))
 //------------------------------------------------------------------------------
-
-void getTimeAndDate() {
-  thisYear = 2000 + Controllino_GetYear(); // "2000 +" because Controllino RTC library gives only two digits with Controllino_GetYear()
-  thisMonth = Controllino_GetMonth();
-  thisDay = Controllino_GetDay();
-  thisHour = Controllino_GetHour();
-  thisMinute = Controllino_GetMinute();
-  thisSecond = Controllino_GetSecond();
-
-  sprintf(dateAndTimeData, ("%4d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
-}
-
-void getLogFileName() {
-  // char logfileName[13]; // space for DDHHMMSS.csv, plus the null char terminator
-  logDay = Controllino_GetDay();
-  logHour = Controllino_GetHour();
-  logMinute = Controllino_GetMinute();
-  logSecond = Controllino_GetSecond();
-
-  sprintf(logfileName, ("%02d%02d%02d%02d.csv"), logDay, logHour, logMinute, logSecond);
-}
 
 void initializeADCs() {
-  // The ADC input range (or gain) can be changed via the following
-  // functions, but be careful never to exceed VDD +0.3V max, or to
-  // exceed the upper and lower limits if you adjust the input range!
-  // Setting these values incorrectly may destroy your ADC!
-  //                                                                ADS1115
-  //                                                                -------
-  // ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 0.1875mV (default)
-  // ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 0.125mV
-  // ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 0.0625mV
-  // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.03125mV
-  // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.015625mV
-  // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.0078125mV
-
   ads0.setGain(GAIN_TWOTHIRDS);
   ads1.setGain(GAIN_TWOTHIRDS);
   ads2.setGain(GAIN_TWOTHIRDS);
@@ -127,86 +112,63 @@ void initializeADCs() {
   ads3.begin();
 }
 
-void initializeSdCards() {
+//------------------------------------------------------------------------------
 
-  // disable sd2 while initializing sd1
-  pinMode(SD2_CS, OUTPUT);
-  digitalWrite(SD2_CS, HIGH);
+void getDateAndTime() {
+  //Serial.println("begin getDateAndTime()");
 
-  // initialize sd1
-  Serial.print("Initializing SD card 1...");
-  // make sure that the default chip select pin is set to
-  // output, even if you don't use it:
-  pinMode(SD1_CS, OUTPUT);
+  thisYear = Controllino_GetYear();
+  thisMonth = Controllino_GetMonth();
+  thisDay = Controllino_GetDay();
+  thisHour = Controllino_GetHour();
+  thisMinute = Controllino_GetMinute();
+  thisSecond = Controllino_GetSecond();
 
-  // see if the card is present and can be initialized:
-  if (!sd1.begin(SD1_CS)) {
-    sd1.initError("sd1:");
-    //error("Card 1 failed, or not present");
-  }
+  dateYear = thisYear + 2000;
 
-  Serial.println("Card 1 initialized.");
+  sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+  sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
+  sprintf(logfileName, ("%02d-%02dlog.csv"), thisMonth, thisDay);
+  sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
 
-  // initialize sd2
-  Serial.print("Initializing SD card 2...");
-
-  // see if the card is present and can be initialized:
-  if (!sd1.begin(SD2_CS)) {
-    sd2.initError("sd2:");
-    //error("Card 2 failed, or not present");
-  }
-
-  Serial.println("Card 2 initialized.");
-
-  getLogFileName();
-
-  if (! sd1.exists(logfileName)) {
-    // only open a new file if it doesn't exist
-    logfile1 = sd1.open(logfileName, FILE_WRITE);
-  }
-
-  if (! logfile1) {
-    sd1.errorExit("logfile1");
-    //error("couldnt create file 1");
-  }
-
-  Serial.print("Logging on card 1 to: ");
-  Serial.println(logfileName);
-
-  if (! sd2.exists(logfileName)) {
-    // only open a new file if it doesn't exist
-    logfile2 = sd2.open(logfileName, FILE_WRITE);
-  }
-
-  if (! logfile2) {
-    sd2.errorExit("logfile2");
-    //error("couldnt create file 2");
-  }
-
-  Serial.print("Logging on card 2 to: ");
-  Serial.println(logfileName);
 }
 
-void measurementRound() {
+//------------------------------------------------------------------------------
+
+void measurements() {
+  //  Serial.println("begin measurements()");
+
+  wdt_reset();
 
   unsigned long measurementRoundStartMillis = 0;
-  int16_t measurementRoundCounter = 0;
+  measurementRoundCounter = 0; // moved to global
 
-  long measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRoundAverage02 = 0, measurementRoundAverage03 = 0;
-  long measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
-  long measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
-  long measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+  measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRoundAverage02 = 0, measurementRoundAverage03 = 0;
+  measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
+  measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
+  measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+
+  measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
+  measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
+  measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
+  measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
+
+  measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
+  measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
+  measurementRoundTemperatureC20 = 0.0, measurementRoundTemperatureC21 = 0.0, measurementRoundTemperatureC22 = 0.0, measurementRoundTemperatureC23 = 0.0;
+  measurementRoundTemperatureC30 = 0.0, measurementRoundTemperatureC31 = 0.0, measurementRoundTemperatureC32 = 0.0, measurementRoundTemperatureC33 = 0.0;
 
   int16_t measurement00, measurement01, measurement02, measurement03;
   int16_t measurement10, measurement11, measurement12, measurement13;
   int16_t measurement20, measurement21, measurement22, measurement23;
   int16_t measurement30, measurement31, measurement32, measurement33;
 
-  getTimeAndDate(); //store date and time before taking measurements/reading ACDs, will be printed to logfile along the values measured
-
   measurementRoundStartMillis = millis();
 
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
+
+    wdt_reset();
+
     measurement00 = ads0.readADC_SingleEnded(0);
     measurement01 = ads0.readADC_SingleEnded(1);
     measurement02 = ads0.readADC_SingleEnded(2);
@@ -249,6 +211,35 @@ void measurementRound() {
 
     measurementRoundCounter++;
 
+    // limit if for measurement protection:
+    //    long max. is 2,147,483,647
+    //    int16_t max. is 32,767
+    //    long max - int16_t max = 2147450880
+    //    if (measurementRoundAverage00 > 2147450880L) { break; }
+    // ...so the measurements stop if the added values become too big and overflow is imminent.
+    // 65538 * 32767 = 2,147,483,647 -> 65538 / 7 = 9362 seconds, if seven readings per second
+    // -> 156 minutes = 2.6 hours max (measurement period)
+
+    if (
+      (measurementRoundAverage00 > 2147450880L)
+      && (measurementRoundAverage01 > 2147450880L)
+      && (measurementRoundAverage02 > 2147450880L)
+      && (measurementRoundAverage03 > 2147450880L)
+      && (measurementRoundAverage10 > 2147450880L)
+      && (measurementRoundAverage11 > 2147450880L)
+      && (measurementRoundAverage12 > 2147450880L)
+      && (measurementRoundAverage13 > 2147450880L)
+      && (measurementRoundAverage20 > 2147450880L)
+      && (measurementRoundAverage21 > 2147450880L)
+      && (measurementRoundAverage22 > 2147450880L)
+      && (measurementRoundAverage23 > 2147450880L)
+      && (measurementRoundAverage30 > 2147450880L)
+      && (measurementRoundAverage31 > 2147450880L)
+      && (measurementRoundAverage32 > 2147450880L)
+      && (measurementRoundAverage33 > 2147450880L)
+    ) {
+      break;
+    }
   }
 
   measurementRoundAverage00 /= measurementRoundCounter;
@@ -271,168 +262,844 @@ void measurementRound() {
   measurementRoundAverage32 /= measurementRoundCounter;
   measurementRoundAverage33 /= measurementRoundCounter;
 
-  logfile1.print(dateAndTimeData);
+  measurementRoundTemperatureC00 = steinhartCalculation(measurementRoundAverage00);
+  measurementRoundTemperatureC01 = steinhartCalculation(measurementRoundAverage01);
+  measurementRoundTemperatureC02 = steinhartCalculation(measurementRoundAverage02);
+  measurementRoundTemperatureC03 = steinhartCalculation(measurementRoundAverage03);
 
-  logfile1.print(",");
+  measurementRoundTemperatureC10 = steinhartCalculation(measurementRoundAverage10);
+  measurementRoundTemperatureC11 = steinhartCalculation(measurementRoundAverage11);
+  measurementRoundTemperatureC12 = steinhartCalculation(measurementRoundAverage12);
+  measurementRoundTemperatureC13 = steinhartCalculation(measurementRoundAverage13);
 
-  logfile1.print(measurementRoundAverage00);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage01);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage02);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage03);
-  logfile1.print(",");
+  measurementRoundTemperatureC20 = steinhartCalculation(measurementRoundAverage20);
+  measurementRoundTemperatureC21 = steinhartCalculation(measurementRoundAverage21);
+  measurementRoundTemperatureC22 = steinhartCalculation(measurementRoundAverage22);
+  measurementRoundTemperatureC23 = steinhartCalculation(measurementRoundAverage23);
 
-  logfile1.print(measurementRoundAverage10);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage11);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage12);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage13);
-  logfile1.print(",");
+  measurementRoundTemperatureC30 = steinhartCalculation(measurementRoundAverage30);
+  measurementRoundTemperatureC31 = steinhartCalculation(measurementRoundAverage31);
+  measurementRoundTemperatureC32 = steinhartCalculation(measurementRoundAverage32);
+  measurementRoundTemperatureC33 = steinhartCalculation(measurementRoundAverage33);
 
-  logfile1.print(measurementRoundAverage20);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage21);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage22);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage23);
-  logfile1.print(",");
+}
 
-  logfile1.print(measurementRoundAverage30);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage31);
-  logfile1.print(",");
-  logfile1.print(measurementRoundAverage32);
-  logfile1.print(",");
-  logfile1.println(measurementRoundAverage33);
+//------------------------------------------------------------------------------
+
+float steinhartCalculation(signed long measurementRoundAverage) {
+
+  float average;
+  average = (float) measurementRoundAverage; // 13333.00; for 10000 resistance & 25.00 C*
+  float steinhart;
+
+  // convert the value to resistance
+  average = adcRange / average - 1; //26665.85 / average - 1; //adcRange / average - 1;
+  average = 10000 / average; // to get 10kOhm, needs 10000÷(26665.85÷13333−1)
+  steinhart = average; // ~6559 not 10000 !!?? --> range 32767 / 6.144v * 5v = 26665.85
+
+  steinhart = average / THERMISTORNOMINAL;     // (R/Ro)
+  steinhart = log(steinhart);                  // ln(R/Ro)
+  steinhart /= BCOEFFICIENT;                   // 1/B * ln(R/Ro)
+  steinhart += 1.0 / (TEMPERATURENOMINAL + 273.15); // + (1/To)
+  steinhart = 1.0 / steinhart;                 // Invert
+  steinhart -= 273.15;                         // convert to C
+
+  return steinhart;
+}
+
+//------------------------------------------------------------------------------
+
+void sd1write() {
+
+  wdt_reset();
+
+  for (; !sd1.begin(SD1_CS) ;) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
+
+  }
+
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd1
+  if (!sd1.chdir(dirName)) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile1.open(measurementfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd1.errorExit("open measurementfile1");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(dateAndTimeData)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(measurementRoundAverage00)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC00)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(measurementRoundAverage10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(measurementRoundAverage20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(measurementRoundAverage30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(measurementRoundTemperatureC32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(measurementRoundAverage33)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.println(measurementRoundTemperatureC33)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  measurementfile1.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+
+void sd2write() {
+  //  Serial.println("begin sd2write()");
+
+  wdt_reset();
+
+  for (; !sd2.begin(SD2_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
+
+  }
+
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd2
+  if (!sd2.chdir(dirName)) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile2.open(measurementfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd2.errorExit("open measurementfile2");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(dateAndTimeData)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(measurementRoundAverage00)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC00)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage01)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC01)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage02)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC02)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage03)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC03)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(measurementRoundAverage10)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC10)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage11)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC11)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage12)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC12)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage13)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC13)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(measurementRoundAverage20)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC20)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage21)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC21)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage22)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC22)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC23)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(measurementRoundAverage30)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC30)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage31)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC31)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage32)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(measurementRoundTemperatureC32)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(measurementRoundAverage33)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.println(measurementRoundTemperatureC33)) ) {
+    sd1.errorExit("measurementfile2 writing");
+  }
+
+  measurementfile2.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+void sd1writeHeader() {
+
+  wdt_reset();
+
+  for (; !sd1.begin(SD1_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd1
+  if (!sd1.chdir(dirName)) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile1.open(measurementfileName, O_RDWR | O_CREAT)) {
+    sd1.errorExit("open measurementfile1");
+  }
+
+  if (! (measurementfile1.println(measurementfileHeader)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  measurementfile1.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+void sd2writeHeader() {
+
+  wdt_reset();
+
+  for (; !sd2.begin(SD2_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd2
+  if (!sd2.chdir(dirName)) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  //open file within Folder
+  if (!measurementfile2.open(measurementfileName, O_RDWR | O_CREAT)) {
+    sd2.errorExit("open measurementfile2");
+  }
+
+  if (! (measurementfile2.println(measurementfileHeader)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  measurementfile2.close();
+
+}
+
+//------------------------------------------------------------------------------
+
+void sd1writeLog() {
+
+  wdt_reset();
+
+  for (; !sd1.begin(SD1_CS);) {
+
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd1.begin(SD1_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd1.exists(dirName)) {
+    if (!sd1.mkdir(dirName)) {
+      sd1.errorExit("sd1.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd1
+  if (!sd1.chdir(dirName)) {
+    sd1.errorExit("sd1.chdir");
+  }
+
+  //open file within Folder
+  if (!logfile1.open(logfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd1.errorExit("open logfile1");
+  }
+
+  if (! (logfile1.print(dateAndTimeData)) ) {
+    sd1.errorExit("logfile1 writing");
+  }
+
+  if (! (logfile1.print(",")) ) {
+    sd1.errorExit("logfile1 writing");
+  }
+
+  if (! (logfile1.println(logMsg)) ) {
+    sd1.errorExit("logfile1 writing");
+  }
 
   logfile1.close();
 
-  logfile2.print(dateAndTimeData);
+}
 
-  logfile2.print(",");
+//------------------------------------------------------------------------------
 
-  logfile2.print(measurementRoundAverage00);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage02);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage02);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage03);
-  logfile2.print(",");
+void sd2writeLog() {
 
-  logfile2.print(measurementRoundAverage20);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage22);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage22);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage23);
-  logfile2.print(",");
+  wdt_reset();
 
-  logfile2.print(measurementRoundAverage20);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage22);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage22);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage23);
-  logfile2.print(",");
+  for (; !sd2.begin(SD2_CS);) {
 
-  logfile2.print(measurementRoundAverage30);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage32);
-  logfile2.print(",");
-  logfile2.print(measurementRoundAverage32);
-  logfile2.print(",");
-  logfile2.println(measurementRoundAverage33);
+    wdt_reset();
+
+    if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
+      sd2.begin(SD2_CS);
+      startsdCardInitializeDelay = millis();
+    }
+  }
+
+  if (!sd2.exists(dirName)) {
+    if (!sd2.mkdir(dirName)) {
+      sd2.errorExit("sd2.mkdir");
+    }
+  }
+
+  // make /dirName the default directory for sd2
+  if (!sd2.chdir(dirName)) {
+    sd2.errorExit("sd2.chdir");
+  }
+
+  //open file within Folder
+  if (!logfile2.open(logfileName, O_RDWR | O_CREAT | O_AT_END)) {
+    sd2.errorExit("open logfile2");
+  }
+
+  if (! (logfile2.print(dateAndTimeData)) ) {
+    sd2.errorExit("logfile2 writing");
+  }
+
+  if (! (logfile2.print(",")) ) {
+    sd2.errorExit("logfile2 writing");
+  }
+
+  if (! (logfile2.println(logMsg)) ) {
+    sd2.errorExit("logfile2 writing");
+  }
 
   logfile2.close();
+
 }
+
+//------------------------------------------------------------------------------
+
+void relayTimeBufferTimer() {
+  startRelayTimeBuffer = millis();
+
+  //  wait approx. [relayTimeBuffer] ms
+
+  while (millis() < startRelayTimeBuffer + relayTimeBuffer) {
+    wdt_reset();
+  }
+}
+
+//------------------------------------------------------------------------------
 
 void setup() {
 
-  Serial.begin(9600);
+  wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
+  delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
+  wdt_enable(WDTO_250MS);
 
-  // Wait for USB Serial
-  while (!Serial) {
-    SysCall::yield();
-  }
+  //    Serial.begin(115200);
+  //
+  //    // Wait for USB Serial
+  //    while (!Serial) {
+  //      ; // wait for serial port to connect. Needed for native USB port only
+  //    }
+  //
+  //    Serial.println(F("setup() begin"));
 
-  pinMode(currentRelay, OUTPUT);
-  pinMode(groundRelay, OUTPUT);
+  pinMode(ads0Relay, OUTPUT);
+  pinMode(ads1Relay, OUTPUT);
+  pinMode(ads2Relay, OUTPUT);
+  pinMode(ads3Relay, OUTPUT);
 
-  Controllino_RTC_init(0);
+  digitalWrite(SD2_CS, HIGH);
 
-  digitalWrite(currentRelay, HIGH);
-  digitalWrite(groundRelay, HIGH);
-  delay(500); // allows time for ACDs to start
+  Controllino_RTC_init();
+
+  getDateAndTime();
+  startGetDateAndTimeInterval = millis();
+
+  sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
+
+  sd1writeLog();
+  sd2writeLog();
+
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,C*,0-1,C*,0-2,C*,0-3,C*,1-0,C*,1-1,C*,1-2,C*,1-3,C*,2-0,C*,2-1,C*,2-2,C*,2-3,C*,3-0,C*,3-1,C*,3-2,C*,3-3,C*"));
+
+  sd1writeHeader();
+  sd2writeHeader();
 
   initializeADCs();
-  initializeSdCards();
 
-  measurementRound();
-  
-  startShutDownPeriod = millis();
+  startShutDownPeriod = millis() - shutDownPeriod;// + 1000; // start shutdownperiod, but start measurements in loop() faster
 
-  digitalWrite(currentRelay, LOW);
-  digitalWrite(groundRelay, LOW);
 }
+
+//------------------------------------------------------------------------------
 
 void loop() {
 
-  // REFACTORING loop():
-  //startShutDownPeriod = 0;
-  //measurementPeriod = 10000;
-  //shutDownPeriod = 10000;
+  wdt_reset();
 
-  if (millis() - startShutDownPeriod <= shutDownPeriod) {
-    digitalWrite(currentRelay, HIGH);
-    digitalWrite(groundRelay, HIGH);
-    delay(500); // allows time for ACDs to start
+  while (millis() - startShutDownPeriod >= shutDownPeriod - relayTimeBuffer) {
 
-    //getTimeAndDate();
-    //initializeADCs();
-    //initializeSdCards();
-    getLogFileName();
+    digitalWrite(ads0Relay, HIGH);
+    digitalWrite(ads1Relay, HIGH);
+    digitalWrite(ads2Relay, HIGH);
+    digitalWrite(ads3Relay, HIGH);
 
-    if (! sd1.exists(logfileName)) {
-      // only open a new file if it doesn't exist
-      logfile1 = sd1.open(logfileName, FILE_WRITE);
+    relayTimeBufferTimer();
+
+    startMeasurementPeriod = millis();
+
+    while (millis() - startMeasurementPeriod <= measurementPeriod) {
+
+      if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
+        getDateAndTime();
+        startGetDateAndTimeInterval = millis();
+      }
+
+      measurements(); // Note: looping in measurements() for measurementRoundPeriod
+
+      sd1write();
+      sd2write();
+
     }
 
-    if (! logfile1) {
-      sd1.errorExit("logfile1");
-      //error("couldnt create file 1");
-    }
-
-    Serial.print("Logging on card 1 to: ");
-    Serial.println(logfileName);
-
-    getLogFileName();
-
-    if (! sd2.exists(logfileName)) {
-      // only open a new file if it doesn't exist
-      logfile2 = sd2.open(logfileName, FILE_WRITE);
-    }
-
-    if (! logfile2) {
-      sd2.errorExit("logfile2");
-      //error("couldnt create file 2");
-    }
-
-    Serial.print("Logging on card 2 to: ");
-    Serial.println(logfileName);
-
-    measurementRound();
-    
     startShutDownPeriod = millis();
 
-    digitalWrite(currentRelay, LOW);
-    digitalWrite(groundRelay, LOW);
+    digitalWrite(ads0Relay, LOW);
+    digitalWrite(ads1Relay, LOW);
+    digitalWrite(ads2Relay, LOW);
+    digitalWrite(ads3Relay, LOW);
+
   }
+
 }
