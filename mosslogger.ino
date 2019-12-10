@@ -54,7 +54,7 @@ float measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurem
 float measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
 float measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
 
-float adcRange = 25970.8; //25974.4;//25967.16; //25959.96; //25956.36; //25952.76; //25945.52; //25865.87; //25960; // 2665.85; // 32767 / 6.144v * 5v = 2665.85
+float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 C (32767 / 6.144v * 5v = 2665.85)
 
 #define THERMISTORNOMINAL 10000  // resistance at 25 degrees C
 #define TEMPERATURENOMINAL 25  // temp. for nominal resistance (almost always 25 C)
