@@ -1,3 +1,6 @@
+// From HIH-4000 series sensor datasheet: VOUT=(VSUPPLY)(0.0062(sensor RH)+0.16), typical at25 ºC
+// Supplied voltage at ADCs GND-VDD is 4V86 (w/ handheld multimeter)
+
 
 #include <SPI.h>
 #include <SdFat.h>
@@ -18,7 +21,7 @@ Adafruit_ADS1115 ads3(0x4B);
 #define ads0Relay CONTROLLINO_R6
 #define ads1Relay CONTROLLINO_R7
 #define ads2Relay CONTROLLINO_R8
-#define ads3Relay CONTROLLINO_R9
+//#define ads3Relay CONTROLLINO_R9
 
 unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
 const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
@@ -49,11 +52,6 @@ signed long measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measur
 signed long measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
 signed long measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
 
-float measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
-float measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
-float measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
-float measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
-
 float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 C (32767 / 6.144v * 5v = 2665.85)
 
 #define THERMISTORNOMINAL 10000  // resistance at 25 degrees C
@@ -79,7 +77,7 @@ SdFile logfile1;
 SdFile logfile2;
 
 char logMsg[100];
-char measurementfileHeader[132]; // space for YYYY-MM-DDThh:mm:ss,0-0,0-1,0-2,0-3,1-0,1-1,1-2,1-3,2-0,2-1,2-2,2-3,3-0,3-1,3-2,3-3, plus the null char terminator
+char measurementfileHeader[132]; // space for YYYY-MM-DDThh:mm:ss,0-0,etc. plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
@@ -147,11 +145,6 @@ void measurements() {
   measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
   measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
   measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
-
-  measurementRoundVoltage00 = 0.0, measurementRoundVoltage01 = 0.0, measurementRoundVoltage02 = 0.0, measurementRoundVoltage03 = 0.0;
-  measurementRoundVoltage10 = 0.0, measurementRoundVoltage11 = 0.0, measurementRoundVoltage12 = 0.0, measurementRoundVoltage13 = 0.0;
-  measurementRoundVoltage20 = 0.0, measurementRoundVoltage21 = 0.0, measurementRoundVoltage22 = 0.0, measurementRoundVoltage23 = 0.0;
-  measurementRoundVoltage30 = 0.0, measurementRoundVoltage31 = 0.0, measurementRoundVoltage32 = 0.0, measurementRoundVoltage33 = 0.0;
 
   measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
   measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
@@ -835,7 +828,7 @@ void sd1writeHeader() {
 
   wdt_reset();
 
-  for (; !sd1.begin(SD1_CS);) {
+  for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
 
@@ -1037,7 +1030,7 @@ void setup() {
   pinMode(ads0Relay, OUTPUT);
   pinMode(ads1Relay, OUTPUT);
   pinMode(ads2Relay, OUTPUT);
-  pinMode(ads3Relay, OUTPUT);
+  //pinMode(ads3Relay, OUTPUT);
 
   digitalWrite(SD2_CS, HIGH);
 
@@ -1051,7 +1044,7 @@ void setup() {
   sd1writeLog();
   sd2writeLog();
 
-  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,C*,0-1,C*,0-2,C*,0-3,C*,1-0,C*,1-1,C*,1-2,C*,1-3,C*,2-0,C*,2-1,C*,2-2,C*,2-3,C*,3-0,C*,3-1,C*,3-2,C*,3-3,C*"));
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0,C*,0-1,C*,0-2,C*,0-3,C*,1-0,C*,1-1,C*,1-2,C*,1-3,C*,2-0,C*,2-1,C*,2-2,C*,2-3,C*,3-0,RH,3-1,RH,3-2,RH,3-3,RH"));
 
   sd1writeHeader();
   sd2writeHeader();
@@ -1073,7 +1066,7 @@ void loop() {
     digitalWrite(ads0Relay, HIGH);
     digitalWrite(ads1Relay, HIGH);
     digitalWrite(ads2Relay, HIGH);
-    digitalWrite(ads3Relay, HIGH);
+    //digitalWrite(ads3Relay, HIGH);
 
     relayTimeBufferTimer();
 
@@ -1098,7 +1091,7 @@ void loop() {
     digitalWrite(ads0Relay, LOW);
     digitalWrite(ads1Relay, LOW);
     digitalWrite(ads2Relay, LOW);
-    digitalWrite(ads3Relay, LOW);
+    //digitalWrite(ads3Relay, LOW);
 
   }
 
