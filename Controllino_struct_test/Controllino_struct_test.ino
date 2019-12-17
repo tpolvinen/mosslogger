@@ -1,7 +1,7 @@
 /*
    Using struct to define data types and structure,
    then create an array of structs, with the initial data/variable values for each,
-
+   then iterate over the struct array, in turn iterating over arrays in each struct.
 */
 
 
