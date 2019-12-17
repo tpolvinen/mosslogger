@@ -1,6 +1,13 @@
+/*
+   Using struct to define data types and structure,
+   then create an array of structs, with the initial data/variable values for each,
+
+*/
+
+
 typedef struct NAMELIST {
   char name[10];
-  int8_t ads0Channels[4];
+  int8_t adsChannels[4];
   int deviceID;
 };
 
@@ -14,32 +21,31 @@ NAMELIST nameList[5] = {
 
 void setup() {
   Serial.begin(115200);
-
-  // Wait for USB Serial
   while (!Serial) {
     ;
   }
-  Serial.println(nameList[0].name);
+  for (int repeats = 0; repeats < 3; repeats ++) {
 
+    Serial.print("Repeat "); Serial.println(repeats +1);
 
+    int8_t nameListSize = sizeof(nameList) / sizeof(nameList[0]);
 
+    for (int i = 0; i < nameListSize; i++) {
+      Serial.print(nameList[i].name); Serial.print(", ");
 
+      int8_t adsChannelsSize = sizeof(nameList[i].adsChannels) / sizeof(nameList[i].adsChannels[0]);
+
+      Serial.println(adsChannelsSize);
+
+      for (int j = 0; j < adsChannelsSize; j++) {
+        Serial.print(nameList[i].adsChannels[j]); Serial.print(", ");
+      }
+      Serial.println();
+      delay(1000);
+    }
+  }
 }
 
 void loop() {
-
-  int8_t arraySize = sizeof(nameList) / sizeof(nameList[0]);
-
-
-  for (int i = 0; i < arraySize; i++) {
-    Serial.print(nameList[i].name); Serial.print(", ");
-    int8_t arraySize1 = sizeof(nameList[i].ads0Channels) / sizeof(nameList[i].ads0Channels);
-    Serial.println(arraySize1);
-    for (int j = 0; j < arraySize1; j++) { // Always 0 ???s
-      Serial.print(nameList[i].ads0Channels[j]); Serial.print(", ");
-    }
-    Serial.println();
-  }
-
 
 }
