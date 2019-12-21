@@ -8,23 +8,28 @@
 #include <Controllino.h> // Usage of CONTROLLINO library allows you to use CONTROLLINO_xx aliases in your sketch.
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
-
 #include <avr/wdt.h>
-
 #include "Statistic.h"
 
 //------------------------------------------------------------------------------
 
-Adafruit_ADS1115 ads0(0x48);
-Adafruit_ADS1115 ads1(0x49);
-Adafruit_ADS1115 ads2(0x4A);
-Adafruit_ADS1115 ads3(0x4B);
+Adafruit_ADS1115 port0ads0(0x48);
+Adafruit_ADS1115 port0ads1(0x49);
+Adafruit_ADS1115 port0ads2(0x4A);
 
-// these control ground connection to voltage dividers in adc channels (thermistors)
-#define ads0Relay CONTROLLINO_R6
-#define ads1Relay CONTROLLINO_R7
-#define ads2Relay CONTROLLINO_R8
-//#define ads3Relay CONTROLLINO_R9
+Adafruit_ADS1115 port1ads0(0x48);
+Adafruit_ADS1115 port1ads1(0x49);
+Adafruit_ADS1115 port1ads2(0x4A);
+Adafruit_ADS1115 port1ads3(0x4B);
+
+// these control ground connection to voltage dividers in adc channels with thermistors (not RH sensors)
+#define port0ads0Relay CONTROLLINO_R6
+#define port0ads1Relay CONTROLLINO_R7
+#define port0ads2Relay CONTROLLINO_R8
+#define port1ads0Relay CONTROLLINO_R9
+#define port1ads1Relay CONTROLLINO_R10
+#define port1ads2Relay CONTROLLINO_R11
+#define port1ads3Relay CONTROLLINO_R12
 
 unsigned long startGetDateAndTimeInterval = 0; // to mark the start of current getDateAndTimeInterval
 const unsigned long getDateAndTimeInterval = 1000; // in milliseconds, interval between dateAndTimeData refreshs with getDateAndTime()
@@ -47,27 +52,43 @@ const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long
 unsigned long startsdCardInitializeDelay = 0; // to mark the start of current sdCardInitializeDelay
 const int16_t sdCardInitializeDelay = 200; // in milliseconds, interval between attempts to read sd card if removed - remember watchdog timer settings!
 
-Statistic measurementRoundStatistic00, measurementRoundStatistic01, measurementRoundStatistic02, measurementRoundStatistic03;
-Statistic measurementRoundStatistic10, measurementRoundStatistic11, measurementRoundStatistic12, measurementRoundStatistic13;
-Statistic measurementRoundStatistic20, measurementRoundStatistic21, measurementRoundStatistic22, measurementRoundStatistic23;
-Statistic measurementRoundStatistic30, measurementRoundStatistic31, measurementRoundStatistic32, measurementRoundStatistic33;
+Statistic port0measurementRoundStatistic00, port0measurementRoundStatistic01, port0measurementRoundStatistic02, port0measurementRoundStatistic03;
+Statistic port0measurementRoundStatistic10, port0measurementRoundStatistic11, port0measurementRoundStatistic12, port0measurementRoundStatistic13;
+Statistic port0measurementRoundStatistic20, port0measurementRoundStatistic21, port0measurementRoundStatistic22, port0measurementRoundStatistic23;
+
+Statistic port1measurementRoundStatistic00, port1measurementRoundStatistic01, port1measurementRoundStatistic02, port1measurementRoundStatistic03;
+Statistic port1measurementRoundStatistic10, port1measurementRoundStatistic11, port1measurementRoundStatistic12, port1measurementRoundStatistic13;
+Statistic port1measurementRoundStatistic20, port1measurementRoundStatistic21, port1measurementRoundStatistic22, port1measurementRoundStatistic23;
+Statistic port1measurementRoundStatistic30, port1measurementRoundStatistic31, port1measurementRoundStatistic32, port1measurementRoundStatistic33;
 
 int16_t measurementRoundCounter = 0;
 
-signed long measurementRoundSum00 = 0, measurementRoundSum01 = 0, measurementRoundSum02 = 0, measurementRoundSum03 = 0;
-signed long measurementRoundSum10 = 0, measurementRoundSum11 = 0, measurementRoundSum12 = 0, measurementRoundSum13 = 0;
-signed long measurementRoundSum20 = 0, measurementRoundSum21 = 0, measurementRoundSum22 = 0, measurementRoundSum23 = 0;
-signed long measurementRoundSum30 = 0, measurementRoundSum31 = 0, measurementRoundSum32 = 0, measurementRoundSum33 = 0;
+signed long port0measurementRoundSum00 = 0, port0measurementRoundSum01 = 0, port0measurementRoundSum02 = 0, port0measurementRoundSum03 = 0;
+signed long port0measurementRoundSum10 = 0, port0measurementRoundSum11 = 0, port0measurementRoundSum12 = 0, port0measurementRoundSum13 = 0;
+signed long port0measurementRoundSum20 = 0, port0measurementRoundSum21 = 0, port0measurementRoundSum22 = 0, port0measurementRoundSum23 = 0;
 
-float measurementRoundAverage00 = 0.0, measurementRoundAverage01 = 0.0, measurementRoundAverage02 = 0.0, measurementRoundAverage03 = 0.0;
-float measurementRoundAverage10 = 0.0, measurementRoundAverage11 = 0.0, measurementRoundAverage12 = 0.0, measurementRoundAverage13 = 0.0;
-float measurementRoundAverage20 = 0.0, measurementRoundAverage21 = 0.0, measurementRoundAverage22 = 0.0, measurementRoundAverage23 = 0.0;
-float measurementRoundAverage30 = 0.0, measurementRoundAverage31 = 0.0, measurementRoundAverage32 = 0.0, measurementRoundAverage33 = 0.0;
+signed long port1measurementRoundSum00 = 0, port1measurementRoundSum01 = 0, port1measurementRoundSum02 = 0, port1measurementRoundSum03 = 0;
+signed long port1measurementRoundSum10 = 0, port1measurementRoundSum11 = 0, port1measurementRoundSum12 = 0, port1measurementRoundSum13 = 0;
+signed long port1measurementRoundSum20 = 0, port1measurementRoundSum21 = 0, port1measurementRoundSum22 = 0, port1measurementRoundSum23 = 0;
+signed long port1measurementRoundSum30 = 0, port1measurementRoundSum31 = 0, port1measurementRoundSum32 = 0, port1measurementRoundSum33 = 0;
 
-float measurementRoundStDev00 = 0.0, measurementRoundStDev01 = 0.0, measurementRoundStDev02 = 0.0, measurementRoundStDev03 = 0.0;
-float measurementRoundStDev10 = 0.0, measurementRoundStDev11 = 0.0, measurementRoundStDev12 = 0.0, measurementRoundStDev13 = 0.0;
-float measurementRoundStDev20 = 0.0, measurementRoundStDev21 = 0.0, measurementRoundStDev22 = 0.0, measurementRoundStDev23 = 0.0;
-float measurementRoundStDev30 = 0.0, measurementRoundStDev31 = 0.0, measurementRoundStDev32 = 0.0, measurementRoundStDev33 = 0.0;
+float port0measurementRoundAverage00 = 0.0, port0measurementRoundAverage01 = 0.0, port0measurementRoundAverage02 = 0.0, port0measurementRoundAverage03 = 0.0;
+float port0measurementRoundAverage10 = 0.0, port0measurementRoundAverage11 = 0.0, port0measurementRoundAverage12 = 0.0, port0measurementRoundAverage13 = 0.0;
+float port0measurementRoundAverage20 = 0.0, port0measurementRoundAverage21 = 0.0, port0measurementRoundAverage22 = 0.0, port0measurementRoundAverage23 = 0.0;
+
+float port1measurementRoundAverage00 = 0.0, port1measurementRoundAverage01 = 0.0, port1measurementRoundAverage02 = 0.0, port1measurementRoundAverage03 = 0.0;
+float port1measurementRoundAverage10 = 0.0, port1measurementRoundAverage11 = 0.0, port1measurementRoundAverage12 = 0.0, port1measurementRoundAverage13 = 0.0;
+float port1measurementRoundAverage20 = 0.0, port1measurementRoundAverage21 = 0.0, port1measurementRoundAverage22 = 0.0, port1measurementRoundAverage23 = 0.0;
+float port1measurementRoundAverage30 = 0.0, port1measurementRoundAverage31 = 0.0, port1measurementRoundAverage32 = 0.0, port1measurementRoundAverage33 = 0.0;
+
+float port0measurementRoundStDev00 = 0.0, port0measurementRoundStDev01 = 0.0, port0measurementRoundStDev02 = 0.0, port0measurementRoundStDev03 = 0.0;
+float port0measurementRoundStDev10 = 0.0, port0measurementRoundStDev11 = 0.0, port0measurementRoundStDev12 = 0.0, port0measurementRoundStDev13 = 0.0;
+float port0measurementRoundStDev20 = 0.0, port0measurementRoundStDev21 = 0.0, port0measurementRoundStDev22 = 0.0, port0measurementRoundStDev23 = 0.0;
+
+float port1measurementRoundStDev00 = 0.0, port1measurementRoundStDev01 = 0.0, port1measurementRoundStDev02 = 0.0, port1measurementRoundStDev03 = 0.0;
+float port1measurementRoundStDev10 = 0.0, port1measurementRoundStDev11 = 0.0, port1measurementRoundStDev12 = 0.0, port1measurementRoundStDev13 = 0.0;
+float port1measurementRoundStDev20 = 0.0, port1measurementRoundStDev21 = 0.0, port1measurementRoundStDev22 = 0.0, port1measurementRoundStDev23 = 0.0;
+float port1measurementRoundStDev30 = 0.0, port1measurementRoundStDev31 = 0.0, port1measurementRoundStDev32 = 0.0, port1measurementRoundStDev33 = 0.0;
 
 float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 oC (32767 / 6.144v * 5v = 2665.85)
 
@@ -75,6 +96,20 @@ float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 oC (32
 #define TEMPERATURENOMINAL 25  // temp. for nominal resistance (almost always 25 oC)
 #define BCOEFFICIENT 3976  // The beta coefficient of the thermistor (usually 3000-4000)
 #define SERIESRESISTOR 10000  // the value of the 'other' resistor
+
+#define HIH4000_SUPPLY_VOLTAGE 5.0
+#define ARDUINO_VCC 4.87
+
+float port0RH00ZeroOffsetV = 0.881115, port0RH00Slope = 0.029501451;
+float port0RH02ZeroOffsetV = 0.881115, port0RH02Slope = 0.029501451;
+float port0RH10ZeroOffsetV = 0.881115, port0RH10Slope = 0.029501451; 
+float port0RH12ZeroOffsetV = 0.881115, port0RH12Slope = 0.029501451;    
+float port0RH20ZeroOffsetV = 0.881115, port0RH20Slope = 0.029501451;
+float port0RH22ZeroOffsetV = 0.881115, port0RH22Slope = 0.029501451;
+
+float port0measurementRoundTrueRH00 = 0.0, port0measurementRoundTemperatureC01 = 0.0, port0measurementRoundTrueRH02 = 0.0, port0measurementRoundTemperatureC03 = 0.0;
+float port0measurementRoundTrueRH10 = 0.0, port0measurementRoundTemperatureC11 = 0.0, port0measurementRoundTrueRH12 = 0.0, port0measurementRoundTemperatureC13 = 0.0;
+float port0measurementRoundTrueRH20 = 0.0, port0measurementRoundTemperatureC21 = 0.0, port0measurementRoundTrueRH22 = 0.0, port0measurementRoundTemperatureC23 = 0.0;
 
 float measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
 float measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
@@ -94,7 +129,7 @@ SdFile logfile1;
 SdFile logfile2;
 
 char logMsg[100];
-char measurementfileHeader[420]; // space for YYYY-MM-DDThh:mm:ss,0-0,etc. plus the null char terminator
+char measurementfileHeader[888]; // space for YYYY-MM-DDThh:mm:ss,0-0,etc. plus the null char terminator
 char dateAndTimeData[20]; // space for YYYY-MM-DDTHH-MM-SS, plus the null char terminator
 char measurementfileName[10]; // space for MM-DD.csv, plus the null char terminator
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
@@ -115,16 +150,28 @@ int8_t thisSecond; // = Controllino_GetSecond();
 #define initError(msg) initErrorHalt(F(msg))
 //------------------------------------------------------------------------------
 
-void initializeADCs() {
-  ads0.setGain(GAIN_TWOTHIRDS);
-  ads1.setGain(GAIN_TWOTHIRDS);
-  ads2.setGain(GAIN_TWOTHIRDS);
-  ads3.setGain(GAIN_TWOTHIRDS);
+void port0InitializeADCs() {
+  port0ads0.setGain(GAIN_TWOTHIRDS);
+  port0ads1.setGain(GAIN_TWOTHIRDS);
+  port0ads2.setGain(GAIN_TWOTHIRDS);
 
-  ads0.begin();
-  ads1.begin();
-  ads2.begin();
-  ads3.begin();
+  port0ads0.begin();
+  port0ads1.begin();
+  port0ads2.begin();
+}
+
+//------------------------------------------------------------------------------
+
+void port1InitializeADCs() {
+  port1ads0.setGain(GAIN_TWOTHIRDS);
+  port1ads1.setGain(GAIN_TWOTHIRDS);
+  port1ads2.setGain(GAIN_TWOTHIRDS);
+  port1ads3.setGain(GAIN_TWOTHIRDS);
+
+  port1ads0.begin();
+  port1ads1.begin();
+  port1ads2.begin();
+  port1ads3.begin();
 }
 
 //------------------------------------------------------------------------------
@@ -159,53 +206,71 @@ void measurements() {
 
   unsigned long measurementRoundStartMillis = 0;
 
-  int16_t measurement00, measurement01, measurement02, measurement03;
-  int16_t measurement10, measurement11, measurement12, measurement13;
-  int16_t measurement20, measurement21, measurement22, measurement23;
-  int16_t measurement30, measurement31, measurement32, measurement33;
+  int16_t port0measurement00, port0measurement01, port0measurement02, port0measurement03;
+  int16_t port0measurement10, port0measurement11, port0measurement12, port0measurement13;
+  int16_t port0measurement20, port0measurement21, port0measurement22, port0measurement23;
+
+  int16_t port1measurement00, port1measurement01, port1measurement02, port1measurement03;
+  int16_t port1measurement10, port1measurement11, port1measurement12, port1measurement13;
+  int16_t port1measurement20, port1measurement21, port1measurement22, port1measurement23;
+  int16_t port1measurement30, port1measurement31, port1measurement32, port1measurement33;
 
   measurementRoundStartMillis = millis();
 
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
 
     wdt_reset();
+    tcaselect(0);
 
-    measurement00 = ads0.readADC_SingleEnded(0);
-    measurement01 = ads0.readADC_SingleEnded(1);
-    measurement02 = ads0.readADC_SingleEnded(2);
-    measurement03 = ads0.readADC_SingleEnded(3);
+    port1measurement00 = ads0.readADC_SingleEnded(0);
+    port1measurement01 = ads0.readADC_SingleEnded(1);
+    port1measurement02 = ads0.readADC_SingleEnded(2);
+    port1measurement03 = ads0.readADC_SingleEnded(3);
 
-    measurement10 = ads1.readADC_SingleEnded(0);
-    measurement11 = ads1.readADC_SingleEnded(1);
-    measurement12 = ads1.readADC_SingleEnded(2);
-    measurement13 = ads1.readADC_SingleEnded(3);
+    port1measurement10 = ads1.readADC_SingleEnded(0);
+    port1measurement11 = ads1.readADC_SingleEnded(1);
+    port1measurement12 = ads1.readADC_SingleEnded(2);
+    port1measurement13 = ads1.readADC_SingleEnded(3);
 
-    measurement20 = ads2.readADC_SingleEnded(0);
-    measurement21 = ads2.readADC_SingleEnded(1);
-    measurement22 = ads2.readADC_SingleEnded(2);
-    measurement23 = ads2.readADC_SingleEnded(3);
+    port1measurement20 = ads2.readADC_SingleEnded(0);
+    port1measurement21 = ads2.readADC_SingleEnded(1);
+    port1measurement22 = ads2.readADC_SingleEnded(2);
+    port1measurement23 = ads2.readADC_SingleEnded(3);
 
-    measurement30 = ads3.readADC_SingleEnded(0);
-    measurement31 = ads3.readADC_SingleEnded(1);
-    measurement32 = ads3.readADC_SingleEnded(2);
-    measurement33 = ads3.readADC_SingleEnded(3);
+    port1measurement30 = ads3.readADC_SingleEnded(0);
+    port1measurement31 = ads3.readADC_SingleEnded(1);
+    port1measurement32 = ads3.readADC_SingleEnded(2);
+    port1measurement33 = ads3.readADC_SingleEnded(3);
 
-    measurementRoundStatistic00.add(measurement00);
-    measurementRoundStatistic01.add(measurement01);
-    measurementRoundStatistic02.add(measurement02);
-    measurementRoundStatistic03.add(measurement03);
-    measurementRoundStatistic10.add(measurement10);
-    measurementRoundStatistic11.add(measurement11);
-    measurementRoundStatistic12.add(measurement12);
-    measurementRoundStatistic13.add(measurement13);
-    measurementRoundStatistic20.add(measurement20);
-    measurementRoundStatistic21.add(measurement21);
-    measurementRoundStatistic22.add(measurement22);
-    measurementRoundStatistic23.add(measurement23);
-    measurementRoundStatistic30.add(measurement30);
-    measurementRoundStatistic31.add(measurement31);
-    measurementRoundStatistic32.add(measurement32);
-    measurementRoundStatistic33.add(measurement33);
+    port0measurementRoundStatistic00.add(port0measurement00);
+    port0measurementRoundStatistic01.add(port0measurement01);
+    port0measurementRoundStatistic02.add(port0measurement02);
+    port0measurementRoundStatistic03.add(port0measurement03);
+    port0measurementRoundStatistic10.add(port0measurement10);
+    port0measurementRoundStatistic11.add(port0measurement11);
+    port0measurementRoundStatistic12.add(port0measurement12);
+    port0measurementRoundStatistic13.add(port0measurement13);
+    port0measurementRoundStatistic20.add(port0measurement20);
+    port0measurementRoundStatistic21.add(port0measurement21);
+    port0measurementRoundStatistic22.add(port0measurement22);
+    port0measurementRoundStatistic23.add(port0measurement23);
+
+    port1measurementRoundStatistic00.add(port1measurement00);
+    port1measurementRoundStatistic01.add(port1measurement01);
+    port1measurementRoundStatistic02.add(port1measurement02);
+    port1measurementRoundStatistic03.add(port1measurement03);
+    port1measurementRoundStatistic10.add(port1measurement10);
+    port1measurementRoundStatistic11.add(port1measurement11);
+    port1measurementRoundStatistic12.add(port1measurement12);
+    port1measurementRoundStatistic13.add(port1measurement13);
+    port1measurementRoundStatistic20.add(port1measurement20);
+    port1measurementRoundStatistic21.add(port1measurement21);
+    port1measurementRoundStatistic22.add(port1measurement22);
+    port1measurementRoundStatistic23.add(port1measurement23);
+    port1measurementRoundStatistic30.add(port1measurement30);
+    port1measurementRoundStatistic31.add(port1measurement31);
+    port1measurementRoundStatistic32.add(port1measurement32);
+    port1measurementRoundStatistic33.add(port1measurement33);
 
     measurementRoundSum00 += measurement00;
     measurementRoundSum01 += measurement01;
@@ -419,7 +484,7 @@ void sd1write() {
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-    if (! (measurementfile1.print(measurementRoundStDev01)) ) {
+  if (! (measurementfile1.print(measurementRoundStDev01)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -1315,12 +1380,18 @@ void setup() {
   sd1writeLog();
   sd2writeLog();
 
-  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0 raw,0-0 C*,0-0 StDev,0-1 raw,0-1 C*,0-1 StDev,0-2 raw,0-2 C*,0-2 StDev,0-3 raw,0-3 C*,0-3 StDev,1-0 raw,1-0 C*,1-0 StDev,1-1 raw,1-1 C*,1-1 StDev,1-2 raw,1-2 C*,1-2 StDev,1-3 raw,1-3 C*,1-3 StDev,2-0 raw,2-0 C*,2-0 StDev,2-1 raw,2-1 C*,2-1 StDev,2-2 raw,2-2 C*,2-2 StDev,2-3 raw,2-3 C*,2-3 StDev,3-0 raw,3-0 C*,3-0 StDev,3-1 raw,3-1 C*,3-1 StDev,3-2 raw,3-2 C*,3-2 StDev,3-3 raw,3-3 C*,3-3 StDev"));
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0-0 raw,0-0-0 RH,0-0-0 StDev,0-0-1 raw,0-0-1 C*,0-0-1 StDev,0-0-2 raw,0-0-2 RH,0-0-2 StDev,0-0-3 raw,0-0-3 C*,0-0-3 StDev,0-1-0 raw,0-1-0 RH,0-1-0 StDev,0-1-1 raw,0-1-1 C*,0-1-1 StDev,0-1-2 raw,0-1-2 RH,0-1-2 StDev,0-1-3 raw,0-1-3 C*,0-1-3 StDev,0-2-0 raw,0-2-0 RH,0-2-0 StDev,0-2-1 raw,0-2-1 C*,0-2-1 StDev,0-2-2 raw,0-2-2 RH,0-2-2 StDev,0-2-3 raw,0-2-3 C*,0-2-3 StDev,1-0-0 raw,1-0-0 C*,1-0-0 StDev,1-0-1 raw,1-0-1 C*,1-0-1 StDev,1-0-2 raw,1-0-2 C*,1-0-2 StDev,1-0-3 raw,1-0-3 C*,1-0-3 StDev,1-1-0 raw,1-1-0 C*,1-1-0 StDev,1-1-1 raw,1-1-1 C*,1-1-1 StDev,1-1-2 raw,1-1-2 C*,1-1-2 StDev,1-1-3 raw,1-1-3 C*,1-1-3 StDev,1-2-0 raw,1-2-0 C*,1-2-0 StDev,1-2-1 raw,1-2-1 C*,1-2-1 StDev,1-2-2 raw,1-2-2 C*,1-2-2 StDev,1-2-3 raw,1-2-3 C*,1-2-3 StDev,1-3-0 raw,1-3-0 C*,1-3-0 StDev,1-3-1 raw,1-3-1 C*,1-3-1 StDev,1-3-2 raw,1-3-2 C*,1-3-2 StDev,1-3-3 raw,1-3-3 C*,1-3-3 StDev"));
 
   sd1writeHeader();
   sd2writeHeader();
 
-  initializeADCs();
+  tcaselect(0);
+  port0InitializeADCs();
+
+  tcaselect(1);
+  port1InitializeADSs();
+
+  tcaselect(0);
 
   startShutDownPeriod = millis() - shutDownPeriod;// + 1000; // start shutdownperiod, but start measurements in loop() faster
 
@@ -1337,7 +1408,10 @@ void loop() {
     digitalWrite(ads0Relay, HIGH);
     digitalWrite(ads1Relay, HIGH);
     digitalWrite(ads2Relay, HIGH);
-    //digitalWrite(ads3Relay, HIGH);
+    digitalWrite(ads3Relay, HIGH);
+    digitalWrite(ads4Relay, HIGH);
+    digitalWrite(ads5Relay, HIGH);
+    digitalWrite(ads6Relay, HIGH);
 
     clearRoundVariables();
 
