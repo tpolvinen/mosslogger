@@ -20,3 +20,10 @@ struct Meas1 {
   const unsigned long measurementRoundMs;
   SdFile sdFiles[] = {measurementfile1, measurementfile2}; // could measurementfile1 be used on both cards?
 }
+
+## Refactoring HIH4030 library
+
+From here: https://github.com/angryelectron/tweetpot/tree/master/arduino/HIH4030
+
+Appears to be similar in formulas and values used in them as HIH-4000-003 that we are using. :)
+Need to refactor to use ADS1115s instead of analog pins. 
