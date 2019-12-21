@@ -111,10 +111,10 @@ float port0measurementRoundTrueRH00 = 0.0, port0measurementRoundTemperatureC01 =
 float port0measurementRoundTrueRH10 = 0.0, port0measurementRoundTemperatureC11 = 0.0, port0measurementRoundTrueRH12 = 0.0, port0measurementRoundTemperatureC13 = 0.0;
 float port0measurementRoundTrueRH20 = 0.0, port0measurementRoundTemperatureC21 = 0.0, port0measurementRoundTrueRH22 = 0.0, port0measurementRoundTemperatureC23 = 0.0;
 
-float measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
-float measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
-float measurementRoundTemperatureC20 = 0.0, measurementRoundTemperatureC21 = 0.0, measurementRoundTemperatureC22 = 0.0, measurementRoundTemperatureC23 = 0.0;
-float measurementRoundTemperatureC30 = 0.0, measurementRoundTemperatureC31 = 0.0, measurementRoundTemperatureC32 = 0.0, measurementRoundTemperatureC33 = 0.0;
+float port1measurementRoundTemperatureC00 = 0.0, port1measurementRoundTemperatureC01 = 0.0, port1measurementRoundTemperatureC02 = 0.0, port1measurementRoundTemperatureC03 = 0.0;
+float port1measurementRoundTemperatureC10 = 0.0, port1measurementRoundTemperatureC11 = 0.0, port1measurementRoundTemperatureC12 = 0.0, port1measurementRoundTemperatureC13 = 0.0;
+float port1measurementRoundTemperatureC20 = 0.0, port1measurementRoundTemperatureC21 = 0.0, port1measurementRoundTemperatureC22 = 0.0, port1measurementRoundTemperatureC23 = 0.0;
+float port1measurementRoundTemperatureC30 = 0.0, port1measurementRoundTemperatureC31 = 0.0, port1measurementRoundTemperatureC32 = 0.0, port1measurementRoundTemperatureC33 = 0.0;
 
 //------------------------------------------------------------------------------
 
@@ -222,25 +222,40 @@ void measurements() {
     wdt_reset();
     tcaselect(0);
 
-    port1measurement00 = ads0.readADC_SingleEnded(0);
-    port1measurement01 = ads0.readADC_SingleEnded(1);
-    port1measurement02 = ads0.readADC_SingleEnded(2);
-    port1measurement03 = ads0.readADC_SingleEnded(3);
+    port0measurement00 = port0ads0.readADC_SingleEnded(0);
+    port0measurement01 = port0ads0.readADC_SingleEnded(1);
+    port0measurement02 = port0ads0.readADC_SingleEnded(2);
+    port0measurement03 = port0ads0.readADC_SingleEnded(3);
 
-    port1measurement10 = ads1.readADC_SingleEnded(0);
-    port1measurement11 = ads1.readADC_SingleEnded(1);
-    port1measurement12 = ads1.readADC_SingleEnded(2);
-    port1measurement13 = ads1.readADC_SingleEnded(3);
+    port0measurement10 = port0ads1.readADC_SingleEnded(0);
+    port0measurement11 = port0ads1.readADC_SingleEnded(1);
+    port0measurement12 = port0ads1.readADC_SingleEnded(2);
+    port0measurement13 = port0ads1.readADC_SingleEnded(3);
 
-    port1measurement20 = ads2.readADC_SingleEnded(0);
-    port1measurement21 = ads2.readADC_SingleEnded(1);
-    port1measurement22 = ads2.readADC_SingleEnded(2);
-    port1measurement23 = ads2.readADC_SingleEnded(3);
+    port0measurement20 = port0ads2.readADC_SingleEnded(0);
+    port0measurement21 = port0ads2.readADC_SingleEnded(1);
+    port0measurement22 = port0ads2.readADC_SingleEnded(2);
+    port0measurement23 = port0ads2.readADC_SingleEnded(3);
 
-    port1measurement30 = ads3.readADC_SingleEnded(0);
-    port1measurement31 = ads3.readADC_SingleEnded(1);
-    port1measurement32 = ads3.readADC_SingleEnded(2);
-    port1measurement33 = ads3.readADC_SingleEnded(3);
+    port1measurement00 = port1ads0.readADC_SingleEnded(0);
+    port1measurement01 = port1ads0.readADC_SingleEnded(1);
+    port1measurement02 = port1ads0.readADC_SingleEnded(2);
+    port1measurement03 = port1ads0.readADC_SingleEnded(3);
+
+    port1measurement10 = port1ads1.readADC_SingleEnded(0);
+    port1measurement11 = port1ads1.readADC_SingleEnded(1);
+    port1measurement12 = port1ads1.readADC_SingleEnded(2);
+    port1measurement13 = port1ads1.readADC_SingleEnded(3);
+
+    port1measurement20 = port1ads2.readADC_SingleEnded(0);
+    port1measurement21 = port1ads2.readADC_SingleEnded(1);
+    port1measurement22 = port1ads2.readADC_SingleEnded(2);
+    port1measurement23 = port1ads2.readADC_SingleEnded(3);
+
+    port1measurement30 = port1ads3.readADC_SingleEnded(0);
+    port1measurement31 = port1ads3.readADC_SingleEnded(1);
+    port1measurement32 = port1ads3.readADC_SingleEnded(2);
+    port1measurement33 = port1ads3.readADC_SingleEnded(3);
 
     port0measurementRoundStatistic00.add(port0measurement00);
     port0measurementRoundStatistic01.add(port0measurement01);
@@ -272,25 +287,40 @@ void measurements() {
     port1measurementRoundStatistic32.add(port1measurement32);
     port1measurementRoundStatistic33.add(port1measurement33);
 
-    measurementRoundSum00 += measurement00;
-    measurementRoundSum01 += measurement01;
-    measurementRoundSum02 += measurement02;
-    measurementRoundSum03 += measurement03;
+    port0measurementRoundSum00 += port0measurement00;
+    port0measurementRoundSum01 += port0measurement01;
+    port0measurementRoundSum02 += port0measurement02;
+    port0measurementRoundSum03 += port0measurement03;
 
-    measurementRoundSum10 += measurement10;
-    measurementRoundSum11 += measurement11;
-    measurementRoundSum12 += measurement12;
-    measurementRoundSum13 += measurement13;
+    port0measurementRoundSum10 += port0measurement10;
+    port0measurementRoundSum11 += port0measurement11;
+    port0measurementRoundSum12 += port0measurement12;
+    port0measurementRoundSum13 += port0measurement13;
 
-    measurementRoundSum20 += measurement20;
-    measurementRoundSum21 += measurement21;
-    measurementRoundSum22 += measurement22;
-    measurementRoundSum23 += measurement23;
+    port0measurementRoundSum20 += port0measurement20;
+    port0measurementRoundSum21 += port0measurement21;
+    port0measurementRoundSum22 += port0measurement22;
+    port0measurementRoundSum23 += port0measurement23;
 
-    measurementRoundSum30 += measurement30;
-    measurementRoundSum31 += measurement31;
-    measurementRoundSum32 += measurement32;
-    measurementRoundSum33 += measurement33;
+    port1measurementRoundSum00 += port1measurement00;
+    port1measurementRoundSum01 += port1measurement01;
+    port1measurementRoundSum02 += port1measurement02;
+    port1measurementRoundSum03 += port1measurement03;
+
+    port1measurementRoundSum10 += port1measurement10;
+    port1measurementRoundSum11 += port1measurement11;
+    port1measurementRoundSum12 += port1measurement12;
+    port1measurementRoundSum13 += port1measurement13;
+
+    port1measurementRoundSum20 += port1measurement20;
+    port1measurementRoundSum21 += port1measurement21;
+    port1measurementRoundSum22 += port1measurement22;
+    port1measurementRoundSum23 += port1measurement23;
+
+    port1measurementRoundSum30 += port1measurement30;
+    port1measurementRoundSum31 += port1measurement31;
+    port1measurementRoundSum32 += port1measurement32;
+    port1measurementRoundSum33 += port1measurement33;
 
     measurementRoundCounter++;
 
@@ -304,87 +334,153 @@ void measurements() {
     // -> 156 minutes = 2.6 hours max (measurement period)
 
     if (
-      (measurementRoundSum00 > 2147450880L)
-      && (measurementRoundSum01 > 2147450880L)
-      && (measurementRoundSum02 > 2147450880L)
-      && (measurementRoundSum03 > 2147450880L)
-      && (measurementRoundSum10 > 2147450880L)
-      && (measurementRoundSum11 > 2147450880L)
-      && (measurementRoundSum12 > 2147450880L)
-      && (measurementRoundSum13 > 2147450880L)
-      && (measurementRoundSum20 > 2147450880L)
-      && (measurementRoundSum21 > 2147450880L)
-      && (measurementRoundSum22 > 2147450880L)
-      && (measurementRoundSum23 > 2147450880L)
-      && (measurementRoundSum30 > 2147450880L)
-      && (measurementRoundSum31 > 2147450880L)
-      && (measurementRoundSum32 > 2147450880L)
-      && (measurementRoundSum33 > 2147450880L)
+      (port0measurementRoundSum00 > 2147450880L)
+      && (port0measurementRoundSum01 > 2147450880L)
+      && (port0measurementRoundSum02 > 2147450880L)
+      && (port0measurementRoundSum03 > 2147450880L)
+      && (port0measurementRoundSum10 > 2147450880L)
+      && (port0measurementRoundSum11 > 2147450880L)
+      && (port0measurementRoundSum12 > 2147450880L)
+      && (port0measurementRoundSum13 > 2147450880L)
+      && (port0measurementRoundSum20 > 2147450880L)
+      && (port0measurementRoundSum21 > 2147450880L)
+      && (port0measurementRoundSum22 > 2147450880L)
+      && (port1measurementRoundSum00 > 2147450880L)
+      && (port1measurementRoundSum01 > 2147450880L)
+      && (port1measurementRoundSum02 > 2147450880L)
+      && (port1measurementRoundSum03 > 2147450880L)
+      && (port1measurementRoundSum10 > 2147450880L)
+      && (port1measurementRoundSum11 > 2147450880L)
+      && (port1measurementRoundSum12 > 2147450880L)
+      && (port1measurementRoundSum13 > 2147450880L)
+      && (port1measurementRoundSum20 > 2147450880L)
+      && (port1measurementRoundSum21 > 2147450880L)
+      && (port1measurementRoundSum22 > 2147450880L)
+      && (port1measurementRoundSum23 > 2147450880L)
+      && (port1measurementRoundSum30 > 2147450880L)
+      && (port1measurementRoundSum31 > 2147450880L)
+      && (port1measurementRoundSum32 > 2147450880L)
+      && (port1measurementRoundSum33 > 2147450880L)
     ) {
       break;
     }
   }
 
-  measurementRoundAverage00 = measurementRoundStatistic00.average();
-  measurementRoundAverage01 = measurementRoundStatistic01.average();
-  measurementRoundAverage02 = measurementRoundStatistic02.average();
-  measurementRoundAverage03 = measurementRoundStatistic03.average();
+  port0measurementRoundAverage00 = port0measurementRoundStatistic00.average();
+  port0measurementRoundAverage01 = port0measurementRoundStatistic01.average();
+  port0measurementRoundAverage02 = port0measurementRoundStatistic02.average();
+  port0measurementRoundAverage03 = port0measurementRoundStatistic03.average();
 
-  measurementRoundAverage10 = measurementRoundStatistic10.average();
-  measurementRoundAverage11 = measurementRoundStatistic11.average();
-  measurementRoundAverage12 = measurementRoundStatistic12.average();
-  measurementRoundAverage13 = measurementRoundStatistic13.average();
+  port0measurementRoundAverage10 = port0measurementRoundStatistic10.average();
+  port0measurementRoundAverage11 = port0measurementRoundStatistic11.average();
+  port0measurementRoundAverage12 = port0measurementRoundStatistic12.average();
+  port0measurementRoundAverage13 = port0measurementRoundStatistic13.average();
 
-  measurementRoundAverage20 = measurementRoundStatistic20.average();
-  measurementRoundAverage21 = measurementRoundStatistic21.average();
-  measurementRoundAverage22 = measurementRoundStatistic22.average();
-  measurementRoundAverage23 = measurementRoundStatistic23.average();
+  port0measurementRoundAverage20 = port0measurementRoundStatistic20.average();
+  port0measurementRoundAverage21 = port0measurementRoundStatistic21.average();
+  port0measurementRoundAverage22 = port0measurementRoundStatistic22.average();
+  port0measurementRoundAverage23 = port0measurementRoundStatistic23.average();
 
-  measurementRoundAverage30 = measurementRoundStatistic30.average();
-  measurementRoundAverage31 = measurementRoundStatistic31.average();
-  measurementRoundAverage32 = measurementRoundStatistic32.average();
-  measurementRoundAverage33 = measurementRoundStatistic33.average();
+  port1measurementRoundAverage00 = port1measurementRoundStatistic00.average();
+  port1measurementRoundAverage01 = port1measurementRoundStatistic01.average();
+  port1measurementRoundAverage02 = port1measurementRoundStatistic02.average();
+  port1measurementRoundAverage03 = port1measurementRoundStatistic03.average();
 
-  measurementRoundStDev00 = measurementRoundStatistic00.pop_stdev();
-  measurementRoundStDev01 = measurementRoundStatistic01.pop_stdev();
-  measurementRoundStDev02 = measurementRoundStatistic02.pop_stdev();
-  measurementRoundStDev03 = measurementRoundStatistic03.pop_stdev();
+  port1measurementRoundAverage10 = port1measurementRoundStatistic10.average();
+  port1measurementRoundAverage11 = port1measurementRoundStatistic11.average();
+  port1measurementRoundAverage12 = port1measurementRoundStatistic12.average();
+  port1measurementRoundAverage13 = port1measurementRoundStatistic13.average();
 
-  measurementRoundStDev10 = measurementRoundStatistic10.pop_stdev();
-  measurementRoundStDev11 = measurementRoundStatistic11.pop_stdev();
-  measurementRoundStDev12 = measurementRoundStatistic12.pop_stdev();
-  measurementRoundStDev13 = measurementRoundStatistic13.pop_stdev();
+  port1measurementRoundAverage20 = port1measurementRoundStatistic20.average();
+  port1measurementRoundAverage21 = port1measurementRoundStatistic21.average();
+  port1measurementRoundAverage22 = port1measurementRoundStatistic22.average();
+  port1measurementRoundAverage23 = port1measurementRoundStatistic23.average();
 
-  measurementRoundStDev20 = measurementRoundStatistic20.pop_stdev();
-  measurementRoundStDev21 = measurementRoundStatistic21.pop_stdev();
-  measurementRoundStDev22 = measurementRoundStatistic22.pop_stdev();
-  measurementRoundStDev23 = measurementRoundStatistic23.pop_stdev();
+  port1measurementRoundAverage30 = port1measurementRoundStatistic30.average();
+  port1measurementRoundAverage31 = port1measurementRoundStatistic31.average();
+  port1measurementRoundAverage32 = port1measurementRoundStatistic32.average();
+  port1measurementRoundAverage33 = port1measurementRoundStatistic33.average();
 
-  measurementRoundStDev30 = measurementRoundStatistic30.pop_stdev();
-  measurementRoundStDev31 = measurementRoundStatistic31.pop_stdev();
-  measurementRoundStDev32 = measurementRoundStatistic32.pop_stdev();
-  measurementRoundStDev33 = measurementRoundStatistic33.pop_stdev();
+  port0measurementRoundStDev00 = port0measurementRoundStatistic00.pop_stdev();
+  port0measurementRoundStDev01 = port0measurementRoundStatistic01.pop_stdev();
+  port0measurementRoundStDev02 = port0measurementRoundStatistic02.pop_stdev();
+  port0measurementRoundStDev03 = port0measurementRoundStatistic03.pop_stdev();
 
-  measurementRoundTemperatureC00 = steinhartCalculation(measurementRoundAverage00);
-  measurementRoundTemperatureC01 = steinhartCalculation(measurementRoundAverage01);
-  measurementRoundTemperatureC02 = steinhartCalculation(measurementRoundAverage02);
-  measurementRoundTemperatureC03 = steinhartCalculation(measurementRoundAverage03);
+  port0measurementRoundStDev10 = port0measurementRoundStatistic10.pop_stdev();
+  port0measurementRoundStDev11 = port0measurementRoundStatistic11.pop_stdev();
+  port0measurementRoundStDev12 = port0measurementRoundStatistic12.pop_stdev();
+  port0measurementRoundStDev13 = port0measurementRoundStatistic13.pop_stdev();
 
-  measurementRoundTemperatureC10 = steinhartCalculation(measurementRoundAverage10);
-  measurementRoundTemperatureC11 = steinhartCalculation(measurementRoundAverage11);
-  measurementRoundTemperatureC12 = steinhartCalculation(measurementRoundAverage12);
-  measurementRoundTemperatureC13 = steinhartCalculation(measurementRoundAverage13);
+  port0measurementRoundStDev20 = port0measurementRoundStatistic20.pop_stdev();
+  port0measurementRoundStDev21 = port0measurementRoundStatistic21.pop_stdev();
+  port0measurementRoundStDev22 = port0measurementRoundStatistic22.pop_stdev();
+  port0measurementRoundStDev23 = port0measurementRoundStatistic23.pop_stdev();
 
-  measurementRoundTemperatureC20 = steinhartCalculation(measurementRoundAverage20);
-  measurementRoundTemperatureC21 = steinhartCalculation(measurementRoundAverage21);
-  measurementRoundTemperatureC22 = steinhartCalculation(measurementRoundAverage22);
-  measurementRoundTemperatureC23 = steinhartCalculation(measurementRoundAverage23);
+  port1measurementRoundStDev00 = port1measurementRoundStatistic00.pop_stdev();
+  port1measurementRoundStDev01 = port1measurementRoundStatistic01.pop_stdev();
+  port1measurementRoundStDev02 = port1measurementRoundStatistic02.pop_stdev();
+  port1measurementRoundStDev03 = port1measurementRoundStatistic03.pop_stdev();
 
-  measurementRoundTemperatureC30 = steinhartCalculation(measurementRoundAverage30);
-  measurementRoundTemperatureC31 = steinhartCalculation(measurementRoundAverage31);
-  measurementRoundTemperatureC32 = steinhartCalculation(measurementRoundAverage32);
-  measurementRoundTemperatureC33 = steinhartCalculation(measurementRoundAverage33);
+  port1measurementRoundStDev10 = port1measurementRoundStatistic10.pop_stdev();
+  port1measurementRoundStDev11 = port1measurementRoundStatistic11.pop_stdev();
+  port1measurementRoundStDev12 = port1measurementRoundStatistic12.pop_stdev();
+  port1measurementRoundStDev13 = port1measurementRoundStatistic13.pop_stdev();
 
+  port1measurementRoundStDev20 = port1measurementRoundStatistic20.pop_stdev();
+  port1measurementRoundStDev21 = port1measurementRoundStatistic21.pop_stdev();
+  port1measurementRoundStDev22 = port1measurementRoundStatistic22.pop_stdev();
+  port1measurementRoundStDev23 = port1measurementRoundStatistic23.pop_stdev();
+
+  port1measurementRoundStDev30 = port1measurementRoundStatistic30.pop_stdev();
+  port1measurementRoundStDev31 = port1measurementRoundStatistic31.pop_stdev();
+  port1measurementRoundStDev32 = port1measurementRoundStatistic32.pop_stdev();
+  port1measurementRoundStDev33 = port1measurementRoundStatistic33.pop_stdev();
+
+
+  port0measurementRoundTemperatureC01 = steinhartCalculation(port0measurementRoundAverage01);
+  port0measurementRoundTrueRH00 = rhCalculation(port0measurementRoundAverage00,port0measurementRoundTemperatureC01);
+
+  port0measurementRoundTemperatureC03 = steinhartCalculation(port0measurementRoundAverage03);
+  port0measurementRoundTrueRH02 = rhCalculation(port0measurementRoundAverage02,port0measurementRoundTemperatureC03);
+
+  port0measurementRoundTemperatureC11 = steinhartCalculation(port0measurementRoundAverage11);
+  port0measurementRoundTrueRH10 = rhCalculation(port0measurementRoundAverage10,port0measurementRoundTemperatureC11);
+  
+  port0measurementRoundTemperatureC13 = steinhartCalculation(port0measurementRoundAverage13);
+  port0measurementRoundTrueRH12 = rhCalculation(port0measurementRoundAverage12,port0measurementRoundTemperatureC13);
+
+  port0measurementRoundTemperatureC21 = steinhartCalculation(port0measurementRoundAverage21);
+  port0measurementRoundTrueRH20 = rhCalculation(port0measurementRoundAverage20,port0measurementRoundTemperatureC21);
+  
+  port0measurementRoundTemperatureC23 = steinhartCalculation(port0measurementRoundAverage23);
+  port0measurementRoundTrueRH22 = rhCalculation(port0measurementRoundAverage22,port0measurementRoundTemperatureC23);
+
+  port1measurementRoundTemperatureC00 = steinhartCalculation(port1measurementRoundAverage00);
+  port1measurementRoundTemperatureC01 = steinhartCalculation(port1measurementRoundAverage01);
+  port1measurementRoundTemperatureC02 = steinhartCalculation(port1measurementRoundAverage02);
+  port1measurementRoundTemperatureC03 = steinhartCalculation(port1measurementRoundAverage03);
+
+  port1measurementRoundTemperatureC10 = steinhartCalculation(port1measurementRoundAverage10);
+  port1measurementRoundTemperatureC11 = steinhartCalculation(port1measurementRoundAverage11);
+  port1measurementRoundTemperatureC12 = steinhartCalculation(port1measurementRoundAverage12);
+  port1measurementRoundTemperatureC13 = steinhartCalculation(port1measurementRoundAverage13);
+
+  port1measurementRoundTemperatureC20 = steinhartCalculation(port1measurementRoundAverage20);
+  port1measurementRoundTemperatureC21 = steinhartCalculation(port1measurementRoundAverage21);
+  port1measurementRoundTemperatureC22 = steinhartCalculation(port1measurementRoundAverage22);
+  port1measurementRoundTemperatureC23 = steinhartCalculation(port1measurementRoundAverage23);
+
+  port1measurementRoundTemperatureC30 = steinhartCalculation(port1measurementRoundAverage30);
+  port1measurementRoundTemperatureC31 = steinhartCalculation(port1measurementRoundAverage31);
+  port1measurementRoundTemperatureC32 = steinhartCalculation(port1measurementRoundAverage32);
+  port1measurementRoundTemperatureC33 = steinhartCalculation(port1measurementRoundAverage33);
+
+}
+
+//------------------------------------------------------------------------------
+
+float rhCalculation(float average, float temperature) {
+  // TODO
 }
 
 //------------------------------------------------------------------------------
