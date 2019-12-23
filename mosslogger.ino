@@ -1,3 +1,4 @@
+
 //mosslogger.ino
 // From HIH-4000 series sensor datasheet: VOUT=(VSUPPLY)(0.0062(sensor RH)+0.16), typical at25 ºC
 // Supplied voltage at ADCs GND-VDD is 4V86 (w/ handheld multimeter)
@@ -9,6 +10,7 @@
 #include <Wire.h>
 #include <Adafruit_ADS1015.h>
 #include <avr/wdt.h>
+#include "RTClib.h"
 #include "Statistic.h"
 
 extern "C" {
@@ -31,6 +33,9 @@ const byte TCAADDR = 0x70; // this is the I2C address of the multiplexer (Adafru
 
 const int8_t I2CPORT0 = 0;
 const int8_t I2CPORT1 = 1;
+const int8_t I2CPORT2 = 2;
+
+RTC_DS3231 rtc;
 
 // these control ground connection to voltage dividers in adc channels with thermistors (not RH sensors)
 #define port0ads0Relay CONTROLLINO_R6
@@ -145,13 +150,8 @@ char measurementfileName[10]; // space for MM-DD.csv, plus the null char termina
 char logfileName[13]; // space for MM-DDlog.csv, plus the null char terminator
 char dirName[7]; // space for /YY-MM, plus the null char terminator
 
-uint16_t dateYear; // Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
-int8_t thisYear; // = Controllino_GetYear();
-int8_t thisMonth; // = Controllino_GetMonth();
-int8_t thisDay; // = Controllino_GetDay();
-int8_t thisHour; // = Controllino_GetHour();
-int8_t thisMinute; // = Controllino_GetMinute();
-int8_t thisSecond; // = Controllino_GetSecond();
+uint16_t thisYear; // rtc library gives year+2000, this is not needed anymore: Controllino RTC library gives only two digits with Controllino_GetYear(), "2000 + thisYear" used in getDateAndTime()
+int8_t thisMonth, thisDay, thisHour, thisMinute, thisSecond;
 
 //------------------------------------------------------------------------------
 // print error msg, any SD error codes, and halt.
@@ -159,6 +159,28 @@ int8_t thisSecond; // = Controllino_GetSecond();
 #define errorExit(msg) errorHalt(F(msg))
 #define initError(msg) initErrorHalt(F(msg))
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+
+void tcascan() {
+
+Serial.println("\nTCAScanner ready!");
+
+  for (uint8_t t = 0; t < 8; t++) {
+    tcaselect(t);
+    Serial.print("TCA Port #"); Serial.println(t);
+
+    for (uint8_t addr = 0; addr <= 127; addr++) {
+      if (addr == TCAADDR) continue;
+
+      uint8_t data;
+      if (! twi_writeTo(addr, &data, 0, 1, 1)) {
+        Serial.print("Found I2C 0x");  Serial.println(addr, HEX);
+      }
+    }
+  }
+  Serial.print("\nScanning done...");
+}
 
 //------------------------------------------------------------------------------
 
@@ -173,6 +195,9 @@ void tcaselect(uint8_t i) {
 //------------------------------------------------------------------------------
 
 void port0InitializeADCs() {
+
+  tcaselect(I2CPORT0);
+  
   port0ads0.setGain(GAIN_TWOTHIRDS);
   port0ads1.setGain(GAIN_TWOTHIRDS);
   port0ads2.setGain(GAIN_TWOTHIRDS);
@@ -180,11 +205,15 @@ void port0InitializeADCs() {
   port0ads0.begin();
   port0ads1.begin();
   port0ads2.begin();
+
 }
 
 //------------------------------------------------------------------------------
 
 void port1InitializeADCs() {
+
+  tcaselect(I2CPORT1);
+  
   port1ads0.setGain(GAIN_TWOTHIRDS);
   port1ads1.setGain(GAIN_TWOTHIRDS);
   port1ads2.setGain(GAIN_TWOTHIRDS);
@@ -194,26 +223,56 @@ void port1InitializeADCs() {
   port1ads1.begin();
   port1ads2.begin();
   port1ads3.begin();
+
+  tcaselect(I2CPORT0);
+}
+
+//------------------------------------------------------------------------------
+
+void initializeRTC() {
+
+  tcaselect(I2CPORT2);
+
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+
+  tcaselect(I2CPORT0);
+
 }
 
 //------------------------------------------------------------------------------
 
 void getDateAndTime() {
+
+  tcaselect(I2CPORT2);
+  
   //Serial.println("begin getDateAndTime()");
+  DateTime now = rtc.now();
 
-  thisYear = Controllino_GetYear();
-  thisMonth = Controllino_GetMonth();
-  thisDay = Controllino_GetDay();
-  thisHour = Controllino_GetHour();
-  thisMinute = Controllino_GetMinute();
-  thisSecond = Controllino_GetSecond();
+  thisYear = now.year();//Controllino_GetYear();
+  thisMonth = now.month();//Controllino_GetMonth();
+  thisDay = now.day();//Controllino_GetDay();
+  thisHour = now.hour();//Controllino_GetHour();
+  thisMinute = now.minute();//Controllino_GetMinute();
+  thisSecond = now.second();//Controllino_GetSecond();
 
-  dateYear = thisYear + 2000;
-
-  sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), dateYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
+  sprintf(dateAndTimeData, ("%04d-%02d-%02dT%02d:%02d:%02d"), thisYear, thisMonth, thisDay, thisHour, thisMinute, thisSecond);
   sprintf(measurementfileName, ("%02d-%02d.csv"), thisMonth, thisDay);
   sprintf(logfileName, ("%02d-%02dlog.csv"), thisMonth, thisDay);
   sprintf(dirName, ("/%02d-%02d"), thisYear, thisMonth);
+
+  tcaselect(I2CPORT0);
 
 }
 
@@ -463,7 +522,7 @@ void measurements() {
   port1measurementRoundStDev33 = port1measurementRoundStatistic33.pop_stdev();
 
   port0measurementRoundTemperatureC01 = steinhartCalculation(port0measurementRoundAverage01);
-  port0measurementRoundTrueRH00 = rhCalculation(port0measurementRoundAverage00, port0measurementRoundTemperatureC01, port0RH00ZeroOffsetV, port0RH00Slope); 
+  port0measurementRoundTrueRH00 = rhCalculation(port0measurementRoundAverage00, port0measurementRoundTemperatureC01, port0RH00ZeroOffsetV, port0RH00Slope);
 
   port0measurementRoundTemperatureC03 = steinhartCalculation(port0measurementRoundAverage03);
   port0measurementRoundTrueRH02 = rhCalculation(port0measurementRoundAverage02, port0measurementRoundTemperatureC03, port0RH02ZeroOffsetV, port0RH02Slope);
@@ -505,15 +564,15 @@ void measurements() {
 //------------------------------------------------------------------------------
 
 float rhCalculation(float average, float temperature, float zeroOffsetV, float rhSlope) {
-  
+
   float voltage = 0.0;
   float sensorRH = 0.0;
   float trueRH = 0.0;
 
-  voltage = (average * 0.1875)/1000;
+  voltage = (average * 0.1875) / 1000;
   sensorRH = (voltage - zeroOffsetV) / rhSlope;
   trueRH = sensorRH / (1.0546 - (0.00216 * temperature));
- 
+
   return trueRH;
 }
 
@@ -1988,14 +2047,14 @@ void setup() {
 
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
-  wdt_enable(WDTO_250MS);
+  wdt_enable(WDTO_2S);
 
-  //Serial.begin(115200);
+  Wire.begin();
 
-  // Wait for USB Serial
-  //while (!Serial) {
-  //  ; // wait for serial port to connect. Needed for native USB port only
-  //}
+  Serial.begin(115200);
+
+  //Wait for USB Serial
+  while (!Serial);
   //
   //    Serial.println(F("setup() begin"));
 
@@ -2011,9 +2070,14 @@ void setup() {
 
   digitalWrite(SD2_CS, HIGH);
 
-  Controllino_RTC_init();
+  //Controllino_RTC_init();
 
-  getDateAndTime();
+  tcascan();
+
+  initializeRTC(); // changing multiplexer ports w/ tcaselect() function in function initializeRTC()
+
+  getDateAndTime(); // changing multiplexer ports w/ tcaselect() function in function getDateAndTime()
+  
   startGetDateAndTimeInterval = millis();
 
   sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
@@ -2026,13 +2090,8 @@ void setup() {
   sd1writeHeader();
   sd2writeHeader();
 
-  tcaselect(I2CPORT0);
-  port0InitializeADCs();
-
-  tcaselect(I2CPORT1);
-  port1InitializeADCs();
-
-  tcaselect(I2CPORT0);
+  port0InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port0InitializeADCs()
+  port1InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port1InitializeADCs()
 
   startShutDownPeriod = millis() - shutDownPeriod; // start shutdownperiod, but start measurements in loop() faster
 
@@ -2063,11 +2122,11 @@ void loop() {
     while (millis() - startMeasurementPeriod <= measurementPeriod) {
 
       if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
-        getDateAndTime();
+        getDateAndTime(); // changing multiplexer ports w/ tcaselect() function in function getDateAndTime()
         startGetDateAndTimeInterval = millis();
       }
 
-      measurements(); // Note: looping in measurements() for measurementRoundPeriod, changing multiplexer ports w/ tcaselect() function in the loop.
+      measurements(); // Note: looping in measurements() for measurementRoundPeriod, changing multiplexer ports w/ tcaselect() function in while loop in measurements().
 
       sd1write();
       sd2write();
