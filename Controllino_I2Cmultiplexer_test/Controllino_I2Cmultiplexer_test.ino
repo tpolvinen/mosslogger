@@ -74,13 +74,13 @@ void setup() {
 
 void loop()
 {
-  tcaselect(MODULE0);
-  sample = ads0.readADC_SingleEnded(0);
-  Serial.print("ads0 sample:\t");
-  Serial.print(sample);
-    tcaselect(MODULE1);
-  sample = ads1.readADC_SingleEnded(0);
-  Serial.print("\tads1 sample:\t");
-  Serial.println(sample);
-  delay(500);
+//  tcaselect(MODULE0);
+//  sample = ads0.readADC_SingleEnded(0);
+//  Serial.print("ads0 sample:\t");
+//  Serial.print(sample);
+//    tcaselect(MODULE1);
+//  sample = ads1.readADC_SingleEnded(0);
+//  Serial.print("\tads1 sample:\t");
+//  Serial.println(sample);
+//  delay(500);
 }

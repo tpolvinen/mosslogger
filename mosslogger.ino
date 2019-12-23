@@ -11,6 +11,10 @@
 #include <avr/wdt.h>
 #include "Statistic.h"
 
+extern "C" {
+#include "utility/twi.h"  // from Wire library, so we can do bus scanning
+}
+
 //------------------------------------------------------------------------------
 
 Adafruit_ADS1115 port0ads0(0x48);
@@ -21,6 +25,12 @@ Adafruit_ADS1115 port1ads0(0x48);
 Adafruit_ADS1115 port1ads1(0x49);
 Adafruit_ADS1115 port1ads2(0x4A);
 Adafruit_ADS1115 port1ads3(0x4B);
+
+//#define
+const byte TCAADDR = 0x70; // this is the I2C address of the multiplexer (Adafruit TCA9548A)
+
+const int8_t I2CPORT0 = 0;
+const int8_t I2CPORT1 = 1;
 
 // these control ground connection to voltage dividers in adc channels with thermistors (not RH sensors)
 #define port0ads0Relay CONTROLLINO_R6
@@ -102,8 +112,8 @@ float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 oC (32
 
 float port0RH00ZeroOffsetV = 0.881115, port0RH00Slope = 0.029501451;
 float port0RH02ZeroOffsetV = 0.881115, port0RH02Slope = 0.029501451;
-float port0RH10ZeroOffsetV = 0.881115, port0RH10Slope = 0.029501451; 
-float port0RH12ZeroOffsetV = 0.881115, port0RH12Slope = 0.029501451;    
+float port0RH10ZeroOffsetV = 0.881115, port0RH10Slope = 0.029501451;
+float port0RH12ZeroOffsetV = 0.881115, port0RH12Slope = 0.029501451;
 float port0RH20ZeroOffsetV = 0.881115, port0RH20Slope = 0.029501451;
 float port0RH22ZeroOffsetV = 0.881115, port0RH22Slope = 0.029501451;
 
@@ -148,6 +158,18 @@ int8_t thisSecond; // = Controllino_GetSecond();
 // store messages in flash
 #define errorExit(msg) errorHalt(F(msg))
 #define initError(msg) initErrorHalt(F(msg))
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+
+void tcaselect(uint8_t i) {
+  if (i > 7) return;
+
+  Wire.beginTransmission(TCAADDR);
+  Wire.write(1 << i);
+  Wire.endTransmission();
+}
+
 //------------------------------------------------------------------------------
 
 void port0InitializeADCs() {
@@ -220,7 +242,7 @@ void measurements() {
   while (millis() - measurementRoundStartMillis <= measurementRoundPeriod) {
 
     wdt_reset();
-    tcaselect(0);
+    tcaselect(I2CPORT0);
 
     port0measurement00 = port0ads0.readADC_SingleEnded(0);
     port0measurement01 = port0ads0.readADC_SingleEnded(1);
@@ -242,6 +264,8 @@ void measurements() {
     port1measurement02 = port1ads0.readADC_SingleEnded(2);
     port1measurement03 = port1ads0.readADC_SingleEnded(3);
 
+    tcaselect(I2CPORT1);
+
     port1measurement10 = port1ads1.readADC_SingleEnded(0);
     port1measurement11 = port1ads1.readADC_SingleEnded(1);
     port1measurement12 = port1ads1.readADC_SingleEnded(2);
@@ -256,6 +280,8 @@ void measurements() {
     port1measurement31 = port1ads3.readADC_SingleEnded(1);
     port1measurement32 = port1ads3.readADC_SingleEnded(2);
     port1measurement33 = port1ads3.readADC_SingleEnded(3);
+
+    tcaselect(I2CPORT0);
 
     port0measurementRoundStatistic00.add(port0measurement00);
     port0measurementRoundStatistic01.add(port0measurement01);
@@ -324,7 +350,7 @@ void measurements() {
 
     measurementRoundCounter++;
 
-    // limit if for measurement protection:
+    // limit if() for measurement protection:
     //    long max. is 2,147,483,647
     //    int16_t max. is 32,767
     //    long max - int16_t max = 2147450880
@@ -436,24 +462,23 @@ void measurements() {
   port1measurementRoundStDev32 = port1measurementRoundStatistic32.pop_stdev();
   port1measurementRoundStDev33 = port1measurementRoundStatistic33.pop_stdev();
 
-
   port0measurementRoundTemperatureC01 = steinhartCalculation(port0measurementRoundAverage01);
-  port0measurementRoundTrueRH00 = rhCalculation(port0measurementRoundAverage00,port0measurementRoundTemperatureC01);
+  port0measurementRoundTrueRH00 = rhCalculation(port0measurementRoundAverage00, port0measurementRoundTemperatureC01, port0RH00ZeroOffsetV, port0RH00Slope); 
 
   port0measurementRoundTemperatureC03 = steinhartCalculation(port0measurementRoundAverage03);
-  port0measurementRoundTrueRH02 = rhCalculation(port0measurementRoundAverage02,port0measurementRoundTemperatureC03);
+  port0measurementRoundTrueRH02 = rhCalculation(port0measurementRoundAverage02, port0measurementRoundTemperatureC03, port0RH02ZeroOffsetV, port0RH02Slope);
 
   port0measurementRoundTemperatureC11 = steinhartCalculation(port0measurementRoundAverage11);
-  port0measurementRoundTrueRH10 = rhCalculation(port0measurementRoundAverage10,port0measurementRoundTemperatureC11);
-  
+  port0measurementRoundTrueRH10 = rhCalculation(port0measurementRoundAverage10, port0measurementRoundTemperatureC11, port0RH10ZeroOffsetV, port0RH10Slope);
+
   port0measurementRoundTemperatureC13 = steinhartCalculation(port0measurementRoundAverage13);
-  port0measurementRoundTrueRH12 = rhCalculation(port0measurementRoundAverage12,port0measurementRoundTemperatureC13);
+  port0measurementRoundTrueRH12 = rhCalculation(port0measurementRoundAverage12, port0measurementRoundTemperatureC13, port0RH12ZeroOffsetV, port0RH12Slope);
 
   port0measurementRoundTemperatureC21 = steinhartCalculation(port0measurementRoundAverage21);
-  port0measurementRoundTrueRH20 = rhCalculation(port0measurementRoundAverage20,port0measurementRoundTemperatureC21);
-  
+  port0measurementRoundTrueRH20 = rhCalculation(port0measurementRoundAverage20, port0measurementRoundTemperatureC21, port0RH20ZeroOffsetV, port0RH20Slope);
+
   port0measurementRoundTemperatureC23 = steinhartCalculation(port0measurementRoundAverage23);
-  port0measurementRoundTrueRH22 = rhCalculation(port0measurementRoundAverage22,port0measurementRoundTemperatureC23);
+  port0measurementRoundTrueRH22 = rhCalculation(port0measurementRoundAverage22, port0measurementRoundTemperatureC23, port0RH22ZeroOffsetV, port0RH22Slope);
 
   port1measurementRoundTemperatureC00 = steinhartCalculation(port1measurementRoundAverage00);
   port1measurementRoundTemperatureC01 = steinhartCalculation(port1measurementRoundAverage01);
@@ -479,8 +504,17 @@ void measurements() {
 
 //------------------------------------------------------------------------------
 
-float rhCalculation(float average, float temperature) {
-  // TODO
+float rhCalculation(float average, float temperature, float zeroOffsetV, float rhSlope) {
+  
+  float voltage = 0.0;
+  float sensorRH = 0.0;
+  float trueRH = 0.0;
+
+  voltage = (average * 0.1875)/1000;
+  sensorRH = (voltage - zeroOffsetV) / rhSlope;
+  trueRH = sensorRH / (1.0546 - (0.00216 * temperature));
+ 
+  return trueRH;
 }
 
 //------------------------------------------------------------------------------
@@ -549,154 +583,76 @@ void sd1write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile1.print(measurementRoundAverage00)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage00)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC00)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH00)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev00)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage01)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC01)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev01)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev00)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage02)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage01)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC02)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC01)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev02)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage03)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC03)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev03)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev01)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  //-------------------------------------------------------------
-
-  if (! (measurementfile1.print(measurementRoundAverage10)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage02)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC10)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH02)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev10)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage11)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC11)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev11)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev02)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage12)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage03)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC12)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC03)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev12)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage13)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC13)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev13)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev03)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -705,76 +661,76 @@ void sd1write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile1.print(measurementRoundAverage20)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage10)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC20)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH10)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev20)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage21)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC21)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev21)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev10)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage22)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage11)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC22)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC11)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev22)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev11)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage23)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage12)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC23)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH12)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev23)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port0measurementRoundAverage13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port0measurementRoundStDev13)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
@@ -783,81 +739,392 @@ void sd1write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile1.print(measurementRoundAverage30)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage20)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC30)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH20)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev30)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-
-  if (! (measurementfile1.print(measurementRoundAverage31)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundTemperatureC31)) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(",")) ) {
-    sd1.errorExit("measurementfile1 writing");
-  }
-  if (! (measurementfile1.print(measurementRoundStDev31)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev20)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage32)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage21)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC32)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC21)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundStDev32)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev21)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
-  if (! (measurementfile1.print(measurementRoundAverage33)) ) {
+  if (! (measurementfile1.print(port0measurementRoundAverage22)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.print(measurementRoundTemperatureC33)) ) {
+  if (! (measurementfile1.print(port0measurementRoundTrueRH22)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
   if (! (measurementfile1.print(",")) ) {
     sd1.errorExit("measurementfile1 writing");
   }
-  if (! (measurementfile1.println(measurementRoundStDev33)) ) {
+  if (! (measurementfile1.print(port0measurementRoundStDev22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port0measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port0measurementRoundTemperatureC23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port0measurementRoundStDev23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(port1measurementRoundAverage00)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC00)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev00)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev01)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev02)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev03)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(port1measurementRoundAverage10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev10)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev11)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev12)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev13)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(port1measurementRoundAverage20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev20)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev21)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev22)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev23)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile1.print(port1measurementRoundAverage30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev30)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev31)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundStDev32)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+
+  if (! (measurementfile1.print(port1measurementRoundAverage33)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(port1measurementRoundTemperatureC33)) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.print(",")) ) {
+    sd1.errorExit("measurementfile1 writing");
+  }
+  if (! (measurementfile1.println(port1measurementRoundStDev33)) ) {
     sd1.errorExit("measurementfile1 writing");
   }
 
   measurementfile1.close();
-
 }
 
 //------------------------------------------------------------------------------
@@ -906,154 +1173,76 @@ void sd2write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile2.print(measurementRoundAverage00)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage00)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC00)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH00)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev00)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage01)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC01)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev01)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev00)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage02)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage01)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC02)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC01)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev02)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage03)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC03)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev03)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev01)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  //-------------------------------------------------------------
-
-  if (! (measurementfile2.print(measurementRoundAverage10)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage02)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC10)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH02)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev10)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage11)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC11)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev11)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev02)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage12)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage03)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC12)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC03)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev12)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage13)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC13)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev13)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev03)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
@@ -1062,76 +1251,76 @@ void sd2write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile2.print(measurementRoundAverage20)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage10)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC20)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH10)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev20)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage21)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC21)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev21)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev10)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage22)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage11)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC22)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC11)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev22)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev11)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage23)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage12)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC23)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH12)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev23)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev12)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port0measurementRoundAverage13)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC13)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port0measurementRoundStDev13)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
@@ -1140,76 +1329,388 @@ void sd2write() {
 
   //-------------------------------------------------------------
 
-  if (! (measurementfile2.print(measurementRoundAverage30)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage20)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC30)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH20)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev30)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-
-  if (! (measurementfile2.print(measurementRoundAverage31)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundTemperatureC31)) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(",")) ) {
-    sd2.errorExit("measurementfile2 writing");
-  }
-  if (! (measurementfile2.print(measurementRoundStDev31)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev20)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage32)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage21)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC32)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC21)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundStDev32)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev21)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
-  if (! (measurementfile2.print(measurementRoundAverage33)) ) {
+  if (! (measurementfile2.print(port0measurementRoundAverage22)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.print(measurementRoundTemperatureC33)) ) {
+  if (! (measurementfile2.print(port0measurementRoundTrueRH22)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
   if (! (measurementfile2.print(",")) ) {
     sd2.errorExit("measurementfile2 writing");
   }
-  if (! (measurementfile2.println(measurementRoundStDev33)) ) {
+  if (! (measurementfile2.print(port0measurementRoundStDev22)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port0measurementRoundAverage23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port0measurementRoundTemperatureC23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port0measurementRoundStDev23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(port1measurementRoundAverage00)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC00)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev00)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage01)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC01)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev01)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage02)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC02)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev02)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage03)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC03)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev03)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(port1measurementRoundAverage10)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC10)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev10)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage11)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC11)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev11)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage12)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC12)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev12)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage13)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC13)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev13)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(port1measurementRoundAverage20)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC20)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev20)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage21)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC21)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev21)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage22)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC22)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev22)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev23)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  //-------------------------------------------------------------
+
+  if (! (measurementfile2.print(port1measurementRoundAverage30)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC30)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev30)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage31)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC31)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev31)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage32)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC32)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundStDev32)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+
+  if (! (measurementfile2.print(port1measurementRoundAverage33)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(port1measurementRoundTemperatureC33)) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.print(",")) ) {
+    sd2.errorExit("measurementfile2 writing");
+  }
+  if (! (measurementfile2.println(port1measurementRoundStDev33)) ) {
     sd2.errorExit("measurementfile2 writing");
   }
 
@@ -1409,34 +1910,75 @@ void relayTimeBufferTimer() {
 
 void clearRoundVariables() {
 
-  measurementRoundCounter = 0; // moved to global
+  // Ripley: …I say we take off and nuke the entire site from orbit. It's the only way to be sure.
 
-  measurementRoundAverage00 = 0, measurementRoundAverage01 = 0, measurementRoundAverage02 = 0, measurementRoundAverage03 = 0;
-  measurementRoundAverage10 = 0, measurementRoundAverage11 = 0, measurementRoundAverage12 = 0, measurementRoundAverage13 = 0;
-  measurementRoundAverage20 = 0, measurementRoundAverage21 = 0, measurementRoundAverage22 = 0, measurementRoundAverage23 = 0;
-  measurementRoundAverage30 = 0, measurementRoundAverage31 = 0, measurementRoundAverage32 = 0, measurementRoundAverage33 = 0;
+  measurementRoundCounter = 0;
 
-  measurementRoundTemperatureC00 = 0.0, measurementRoundTemperatureC01 = 0.0, measurementRoundTemperatureC02 = 0.0, measurementRoundTemperatureC03 = 0.0;
-  measurementRoundTemperatureC10 = 0.0, measurementRoundTemperatureC11 = 0.0, measurementRoundTemperatureC12 = 0.0, measurementRoundTemperatureC13 = 0.0;
-  measurementRoundTemperatureC20 = 0.0, measurementRoundTemperatureC21 = 0.0, measurementRoundTemperatureC22 = 0.0, measurementRoundTemperatureC23 = 0.0;
-  measurementRoundTemperatureC30 = 0.0, measurementRoundTemperatureC31 = 0.0, measurementRoundTemperatureC32 = 0.0, measurementRoundTemperatureC33 = 0.0;
+  port0measurementRoundSum00 = 0, port0measurementRoundSum01 = 0, port0measurementRoundSum02 = 0, port0measurementRoundSum03 = 0;
+  port0measurementRoundSum10 = 0, port0measurementRoundSum11 = 0, port0measurementRoundSum12 = 0, port0measurementRoundSum13 = 0;
+  port0measurementRoundSum20 = 0, port0measurementRoundSum21 = 0, port0measurementRoundSum22 = 0, port0measurementRoundSum23 = 0;
 
-  measurementRoundStatistic00.clear();
-  measurementRoundStatistic01.clear();
-  measurementRoundStatistic02.clear();
-  measurementRoundStatistic03.clear();
-  measurementRoundStatistic10.clear();
-  measurementRoundStatistic11.clear();
-  measurementRoundStatistic12.clear();
-  measurementRoundStatistic13.clear();
-  measurementRoundStatistic20.clear();
-  measurementRoundStatistic21.clear();
-  measurementRoundStatistic22.clear();
-  measurementRoundStatistic23.clear();
-  measurementRoundStatistic30.clear();
-  measurementRoundStatistic31.clear();
-  measurementRoundStatistic32.clear();
-  measurementRoundStatistic33.clear();
+  port0measurementRoundAverage00 = 0, port0measurementRoundAverage01 = 0, port0measurementRoundAverage02 = 0, port0measurementRoundAverage03 = 0;
+  port0measurementRoundAverage10 = 0, port0measurementRoundAverage11 = 0, port0measurementRoundAverage12 = 0, port0measurementRoundAverage13 = 0;
+  port0measurementRoundAverage20 = 0, port0measurementRoundAverage21 = 0, port0measurementRoundAverage22 = 0, port0measurementRoundAverage23 = 0;
+
+  port0measurementRoundStDev00 = 0.0, port0measurementRoundStDev01 = 0.0, port0measurementRoundStDev02 = 0.0, port0measurementRoundStDev03 = 0.0;
+  port0measurementRoundStDev10 = 0.0, port0measurementRoundStDev11 = 0.0, port0measurementRoundStDev12 = 0.0, port0measurementRoundStDev13 = 0.0;
+  port0measurementRoundStDev20 = 0.0, port0measurementRoundStDev21 = 0.0, port0measurementRoundStDev22 = 0.0, port0measurementRoundStDev23 = 0.0;
+
+  port0measurementRoundTrueRH00 = 0.0, port0measurementRoundTemperatureC01 = 0.0, port0measurementRoundTrueRH02 = 0.0, port0measurementRoundTemperatureC03 = 0.0;
+  port0measurementRoundTrueRH10 = 0.0, port0measurementRoundTemperatureC11 = 0.0, port0measurementRoundTrueRH12 = 0.0, port0measurementRoundTemperatureC13 = 0.0;
+  port0measurementRoundTrueRH20 = 0.0, port0measurementRoundTemperatureC21 = 0.0, port0measurementRoundTrueRH22 = 0.0, port0measurementRoundTemperatureC23 = 0.0;
+
+  port0measurementRoundStatistic00.clear();
+  port0measurementRoundStatistic01.clear();
+  port0measurementRoundStatistic02.clear();
+  port0measurementRoundStatistic03.clear();
+  port0measurementRoundStatistic10.clear();
+  port0measurementRoundStatistic11.clear();
+  port0measurementRoundStatistic12.clear();
+  port0measurementRoundStatistic13.clear();
+  port0measurementRoundStatistic20.clear();
+  port0measurementRoundStatistic21.clear();
+  port0measurementRoundStatistic22.clear();
+  port0measurementRoundStatistic23.clear();
+
+  port1measurementRoundSum00 = 0, port1measurementRoundSum01 = 0, port1measurementRoundSum02 = 0, port1measurementRoundSum03 = 0;
+  port1measurementRoundSum10 = 0, port1measurementRoundSum11 = 0, port1measurementRoundSum12 = 0, port1measurementRoundSum13 = 0;
+  port1measurementRoundSum20 = 0, port1measurementRoundSum21 = 0, port1measurementRoundSum22 = 0, port1measurementRoundSum23 = 0;
+  port1measurementRoundSum30 = 0, port1measurementRoundSum31 = 0, port1measurementRoundSum32 = 0, port1measurementRoundSum33 = 0;
+
+  port1measurementRoundAverage00 = 0, port1measurementRoundAverage01 = 0, port1measurementRoundAverage02 = 0, port1measurementRoundAverage03 = 0;
+  port1measurementRoundAverage10 = 0, port1measurementRoundAverage11 = 0, port1measurementRoundAverage12 = 0, port1measurementRoundAverage13 = 0;
+  port1measurementRoundAverage20 = 0, port1measurementRoundAverage21 = 0, port1measurementRoundAverage22 = 0, port1measurementRoundAverage23 = 0;
+  port1measurementRoundAverage30 = 0, port1measurementRoundAverage31 = 0, port1measurementRoundAverage32 = 0, port1measurementRoundAverage33 = 0;
+
+  port1measurementRoundStDev00 = 0.0, port1measurementRoundStDev01 = 0.0, port1measurementRoundStDev02 = 0.0, port1measurementRoundStDev03 = 0.0;
+  port1measurementRoundStDev10 = 0.0, port1measurementRoundStDev11 = 0.0, port1measurementRoundStDev12 = 0.0, port1measurementRoundStDev13 = 0.0;
+  port1measurementRoundStDev20 = 0.0, port1measurementRoundStDev21 = 0.0, port1measurementRoundStDev22 = 0.0, port1measurementRoundStDev23 = 0.0;
+  port1measurementRoundStDev30 = 0.0, port1measurementRoundStDev31 = 0.0, port1measurementRoundStDev32 = 0.0, port1measurementRoundStDev33 = 0.0;
+
+  port1measurementRoundTemperatureC00 = 0.0, port1measurementRoundTemperatureC01 = 0.0, port1measurementRoundTemperatureC02 = 0.0, port1measurementRoundTemperatureC03 = 0.0;
+  port1measurementRoundTemperatureC10 = 0.0, port1measurementRoundTemperatureC11 = 0.0, port1measurementRoundTemperatureC12 = 0.0, port1measurementRoundTemperatureC13 = 0.0;
+  port1measurementRoundTemperatureC20 = 0.0, port1measurementRoundTemperatureC21 = 0.0, port1measurementRoundTemperatureC22 = 0.0, port1measurementRoundTemperatureC23 = 0.0;
+  port1measurementRoundTemperatureC30 = 0.0, port1measurementRoundTemperatureC31 = 0.0, port1measurementRoundTemperatureC32 = 0.0, port1measurementRoundTemperatureC33 = 0.0;
+
+  port1measurementRoundStatistic00.clear();
+  port1measurementRoundStatistic01.clear();
+  port1measurementRoundStatistic02.clear();
+  port1measurementRoundStatistic03.clear();
+  port1measurementRoundStatistic10.clear();
+  port1measurementRoundStatistic11.clear();
+  port1measurementRoundStatistic12.clear();
+  port1measurementRoundStatistic13.clear();
+  port1measurementRoundStatistic20.clear();
+  port1measurementRoundStatistic21.clear();
+  port1measurementRoundStatistic22.clear();
+  port1measurementRoundStatistic23.clear();
+  port1measurementRoundStatistic30.clear();
+  port1measurementRoundStatistic31.clear();
+  port1measurementRoundStatistic32.clear();
+  port1measurementRoundStatistic33.clear();
 
 }
 
@@ -1459,10 +2001,13 @@ void setup() {
 
   clearRoundVariables();
 
-  pinMode(ads0Relay, OUTPUT);
-  pinMode(ads1Relay, OUTPUT);
-  pinMode(ads2Relay, OUTPUT);
-  //pinMode(ads3Relay, OUTPUT);
+  pinMode(port0ads0Relay, OUTPUT);
+  pinMode(port0ads1Relay, OUTPUT);
+  pinMode(port0ads2Relay, OUTPUT);
+  pinMode(port1ads0Relay, OUTPUT);
+  pinMode(port1ads1Relay, OUTPUT);
+  pinMode(port1ads2Relay, OUTPUT);
+  pinMode(port1ads3Relay, OUTPUT);
 
   digitalWrite(SD2_CS, HIGH);
 
@@ -1481,15 +2026,15 @@ void setup() {
   sd1writeHeader();
   sd2writeHeader();
 
-  tcaselect(0);
+  tcaselect(I2CPORT0);
   port0InitializeADCs();
 
-  tcaselect(1);
-  port1InitializeADSs();
+  tcaselect(I2CPORT1);
+  port1InitializeADCs();
 
-  tcaselect(0);
+  tcaselect(I2CPORT0);
 
-  startShutDownPeriod = millis() - shutDownPeriod;// + 1000; // start shutdownperiod, but start measurements in loop() faster
+  startShutDownPeriod = millis() - shutDownPeriod; // start shutdownperiod, but start measurements in loop() faster
 
 }
 
@@ -1501,13 +2046,13 @@ void loop() {
 
   while (millis() - startShutDownPeriod >= shutDownPeriod - relayTimeBuffer) {
 
-    digitalWrite(ads0Relay, HIGH);
-    digitalWrite(ads1Relay, HIGH);
-    digitalWrite(ads2Relay, HIGH);
-    digitalWrite(ads3Relay, HIGH);
-    digitalWrite(ads4Relay, HIGH);
-    digitalWrite(ads5Relay, HIGH);
-    digitalWrite(ads6Relay, HIGH);
+    digitalWrite(port0ads0Relay, HIGH);
+    digitalWrite(port0ads1Relay, HIGH);
+    digitalWrite(port0ads2Relay, HIGH);
+    digitalWrite(port1ads0Relay, HIGH);
+    digitalWrite(port1ads1Relay, HIGH);
+    digitalWrite(port1ads2Relay, HIGH);
+    digitalWrite(port1ads3Relay, HIGH);
 
     clearRoundVariables();
 
@@ -1522,7 +2067,7 @@ void loop() {
         startGetDateAndTimeInterval = millis();
       }
 
-      measurements(); // Note: looping in measurements() for measurementRoundPeriod
+      measurements(); // Note: looping in measurements() for measurementRoundPeriod, changing multiplexer ports w/ tcaselect() function in the loop.
 
       sd1write();
       sd2write();
@@ -1531,10 +2076,13 @@ void loop() {
 
     startShutDownPeriod = millis();
 
-    digitalWrite(ads0Relay, LOW);
-    digitalWrite(ads1Relay, LOW);
-    digitalWrite(ads2Relay, LOW);
-    //digitalWrite(ads3Relay, LOW);
+    digitalWrite(port0ads0Relay, LOW);
+    digitalWrite(port0ads1Relay, LOW);
+    digitalWrite(port0ads2Relay, LOW);
+    digitalWrite(port1ads0Relay, LOW);
+    digitalWrite(port1ads1Relay, LOW);
+    digitalWrite(port1ads2Relay, LOW);
+    digitalWrite(port1ads3Relay, LOW);
 
   }
 
