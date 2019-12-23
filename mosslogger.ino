@@ -115,8 +115,8 @@ float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 oC (32
 #define HIH4000_SUPPLY_VOLTAGE 5.0
 #define ARDUINO_VCC 4.87
 
-float port0RH00ZeroOffsetV = 0.881115, port0RH00Slope = 0.029501451;
-float port0RH02ZeroOffsetV = 0.881115, port0RH02Slope = 0.029501451;
+float port0RH00ZeroOffsetV = 0.881115, port0RH00Slope = 0.029501451; // on-component-label: 47
+float port0RH02ZeroOffsetV = 0.872005, port0RH02Slope = 0.029127021; // on-component-label: 177
 float port0RH10ZeroOffsetV = 0.881115, port0RH10Slope = 0.029501451;
 float port0RH12ZeroOffsetV = 0.881115, port0RH12Slope = 0.029501451;
 float port0RH20ZeroOffsetV = 0.881115, port0RH20Slope = 0.029501451;
