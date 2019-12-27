@@ -1,5 +1,5 @@
 
-//mosslogger.ino
+// mosslogger_LCD_test.ino
 // From HIH-4000 series sensor datasheet: VOUT=(VSUPPLY)(0.0062(sensor RH)+0.16), typical at25 ºC
 // Supplied voltage at ADCs GND-VDD is 4V86 (w/ handheld multimeter)
 
@@ -171,22 +171,22 @@ int8_t thisMonth, thisDay, thisHour, thisMinute, thisSecond;
 
 void tcascan() {
 
-  //Serial.println("\nTCAScanner ready!");
+  Serial.println("\nTCAScanner ready!");
 
   for (uint8_t t = 0; t < 8; t++) {
     tcaselect(t);
-    //Serial.print("TCA Port #"); Serial.println(t);
+    Serial.print("TCA Port #"); Serial.println(t);
 
     for (uint8_t addr = 0; addr <= 127; addr++) {
       if (addr == TCAADDR) continue;
 
       uint8_t data;
       if (! twi_writeTo(addr, &data, 0, 1, 1)) {
-        //Serial.print("Found I2C 0x");  Serial.println(addr, HEX);
+        Serial.print("Found I2C 0x");  Serial.println(addr, HEX);
       }
     }
   }
-  //Serial.println("\nScanning done...");
+  Serial.println("\nScanning done...");
 }
 
 //------------------------------------------------------------------------------
@@ -241,12 +241,12 @@ void initializeRTC() {
   tcaselect(I2CPORT2);
 
   if (! rtc.begin()) {
-    //Serial.println("Couldn't find RTC");
+    Serial.println("Couldn't find RTC");
     while (1);
   }
 
   if (rtc.lostPower()) {
-    //Serial.println("RTC lost power, lets set the time!");
+    Serial.println("RTC lost power, lets set the time!");
     // following line sets the RTC to the date & time this sketch was compiled
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
@@ -286,9 +286,9 @@ void getDateAndTime() {
 //------------------------------------------------------------------------------
 
 void lcdPrintTime() {
-  lcd.setCursor(0, 0);
-  sprintf(lcdRow, ("RTC time:   %02d:%02d:%02d"), thisHour, thisMinute, thisSecond);
-  lcd.print(lcdRow);
+        lcd.setCursor(0, 0);
+        sprintf(lcdRow, ("RTC time:   %02d:%02d:%02d"), thisHour, thisMinute, thisSecond);
+        lcd.print(lcdRow);
 
 }
 
@@ -575,8 +575,8 @@ void measurements() {
   port1measurementRoundTemperatureC32 = steinhartCalculation(port1measurementRoundAverage32);
   port1measurementRoundTemperatureC33 = steinhartCalculation(port1measurementRoundAverage33);
 
-  //Serial.print("measurementRoundCounter:\t");
-  //Serial.println(measurementRoundCounter);
+  Serial.print("measurementRoundCounter:\t");
+  Serial.println(measurementRoundCounter);
 
 }
 
@@ -2073,10 +2073,10 @@ void setup() {
 
   Wire.begin();
 
-  //Serial.begin(115200);
+  Serial.begin(115200);
 
   //Wait for USB Serial
-  //while (!Serial);
+  while (!Serial);
   //
   //    Serial.println(F("setup() begin"));
   lcd.begin(20, 4);
@@ -2106,17 +2106,17 @@ void setup() {
   sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
 
   lcdPrintTime();
-
+  
   lcd.setCursor(0, 1);
   sprintf(lcdRow, ("off:%ld on:%ld"), shutDownPeriod, measurementPeriod);
   lcd.print(lcdRow);
-
+  
   lcd.setCursor(0, 2);
   sprintf(lcdRow, ("per:%ld"), measurementRoundPeriod);
   lcd.print(lcdRow);
   lcd.setCursor(12, 2);
   lcd.print("STARTED:");
-
+  
   lcd.setCursor(0, 3);
   lcd.print(dateAndTimeData);
 
@@ -2182,11 +2182,11 @@ void loop() {
     digitalWrite(port1ads3Relay, LOW);
 
   }
-
+  
   if ( millis () - startGetDateAndTimeInterval >= getDateAndTimeInterval) {
-    startGetDateAndTimeInterval = millis();
-    getDateAndTime(); // changing multiplexer ports w/ tcaselect() function in function getDateAndTime()
-    lcdPrintTime();
-  }
+        startGetDateAndTimeInterval = millis();
+        getDateAndTime(); // changing multiplexer ports w/ tcaselect() function in function getDateAndTime()
+        lcdPrintTime();
+      }
 
 }
