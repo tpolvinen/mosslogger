@@ -6,7 +6,7 @@
 //#define DEBUG
 #include <DebugMacros.h> // Example: DEBUG_PRINTLN(x,HEX);
 
-#define PLOTTER
+//#define PLOTTER
 #include <PlotterMacros.h>
 
 
