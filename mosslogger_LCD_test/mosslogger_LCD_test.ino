@@ -2105,6 +2105,19 @@ void setup() {
 
   sprintf(logMsg, ("Hello world. I start now.,shutDownPeriod,%ld,measurementPeriod,%ld,measurementRoundPeriod,%ld"), shutDownPeriod, measurementPeriod, measurementRoundPeriod);
 
+  sd1writeLog();
+  sd2writeLog();
+
+  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0-0 raw,0-0-0 RH,0-0-0 StDev,0-0-1 raw,0-0-1 C*,0-0-1 StDev,0-0-2 raw,0-0-2 RH,0-0-2 StDev,0-0-3 raw,0-0-3 C*,0-0-3 StDev,0-1-0 raw,0-1-0 RH,0-1-0 StDev,0-1-1 raw,0-1-1 C*,0-1-1 StDev,0-1-2 raw,0-1-2 RH,0-1-2 StDev,0-1-3 raw,0-1-3 C*,0-1-3 StDev,0-2-0 raw,0-2-0 RH,0-2-0 StDev,0-2-1 raw,0-2-1 C*,0-2-1 StDev,0-2-2 raw,0-2-2 RH,0-2-2 StDev,0-2-3 raw,0-2-3 C*,0-2-3 StDev,1-0-0 raw,1-0-0 C*,1-0-0 StDev,1-0-1 raw,1-0-1 C*,1-0-1 StDev,1-0-2 raw,1-0-2 C*,1-0-2 StDev,1-0-3 raw,1-0-3 C*,1-0-3 StDev,1-1-0 raw,1-1-0 C*,1-1-0 StDev,1-1-1 raw,1-1-1 C*,1-1-1 StDev,1-1-2 raw,1-1-2 C*,1-1-2 StDev,1-1-3 raw,1-1-3 C*,1-1-3 StDev,1-2-0 raw,1-2-0 C*,1-2-0 StDev,1-2-1 raw,1-2-1 C*,1-2-1 StDev,1-2-2 raw,1-2-2 C*,1-2-2 StDev,1-2-3 raw,1-2-3 C*,1-2-3 StDev,1-3-0 raw,1-3-0 C*,1-3-0 StDev,1-3-1 raw,1-3-1 C*,1-3-1 StDev,1-3-2 raw,1-3-2 C*,1-3-2 StDev,1-3-3 raw,1-3-3 C*,1-3-3 StDev"));
+
+  sd1writeHeader();
+  sd2writeHeader();
+
+  port0InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port0InitializeADCs()
+  port1InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port1InitializeADCs()
+
+  startShutDownPeriod = millis() - shutDownPeriod; // start shutdownperiod, but start measurements in loop() faster
+
   lcdPrintTime();
   
   lcd.setCursor(0, 1);
@@ -2120,18 +2133,7 @@ void setup() {
   lcd.setCursor(0, 3);
   lcd.print(dateAndTimeData);
 
-  sd1writeLog();
-  sd2writeLog();
-
-  sprintf(measurementfileHeader, ("YYYY-MM-DDThh:mm:ss,0-0-0 raw,0-0-0 RH,0-0-0 StDev,0-0-1 raw,0-0-1 C*,0-0-1 StDev,0-0-2 raw,0-0-2 RH,0-0-2 StDev,0-0-3 raw,0-0-3 C*,0-0-3 StDev,0-1-0 raw,0-1-0 RH,0-1-0 StDev,0-1-1 raw,0-1-1 C*,0-1-1 StDev,0-1-2 raw,0-1-2 RH,0-1-2 StDev,0-1-3 raw,0-1-3 C*,0-1-3 StDev,0-2-0 raw,0-2-0 RH,0-2-0 StDev,0-2-1 raw,0-2-1 C*,0-2-1 StDev,0-2-2 raw,0-2-2 RH,0-2-2 StDev,0-2-3 raw,0-2-3 C*,0-2-3 StDev,1-0-0 raw,1-0-0 C*,1-0-0 StDev,1-0-1 raw,1-0-1 C*,1-0-1 StDev,1-0-2 raw,1-0-2 C*,1-0-2 StDev,1-0-3 raw,1-0-3 C*,1-0-3 StDev,1-1-0 raw,1-1-0 C*,1-1-0 StDev,1-1-1 raw,1-1-1 C*,1-1-1 StDev,1-1-2 raw,1-1-2 C*,1-1-2 StDev,1-1-3 raw,1-1-3 C*,1-1-3 StDev,1-2-0 raw,1-2-0 C*,1-2-0 StDev,1-2-1 raw,1-2-1 C*,1-2-1 StDev,1-2-2 raw,1-2-2 C*,1-2-2 StDev,1-2-3 raw,1-2-3 C*,1-2-3 StDev,1-3-0 raw,1-3-0 C*,1-3-0 StDev,1-3-1 raw,1-3-1 C*,1-3-1 StDev,1-3-2 raw,1-3-2 C*,1-3-2 StDev,1-3-3 raw,1-3-3 C*,1-3-3 StDev"));
-
-  sd1writeHeader();
-  sd2writeHeader();
-
-  port0InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port0InitializeADCs()
-  port1InitializeADCs(); // changing multiplexer ports w/ tcaselect() function in function port1InitializeADCs()
-
-  startShutDownPeriod = millis() - shutDownPeriod; // start shutdownperiod, but start measurements in loop() faster
+  
 
 }
 

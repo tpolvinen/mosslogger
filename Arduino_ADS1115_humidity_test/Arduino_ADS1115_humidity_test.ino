@@ -44,6 +44,7 @@ void setup() {
 }
 
 float rhReadWrite(int channel, float offset, float slope) {
+//int16_t rhReadWrite(int channel, float offset, float slope) {
 
   int16_t sensorValue = 0;
   float voltage = 0.0;
@@ -56,6 +57,7 @@ float rhReadWrite(int channel, float offset, float slope) {
   trueRH = sensorRH / (1.0546 - (0.00216 * temperature));
 
   return trueRH;
+  //return sensorValue;
 }
 
 void loop() {
@@ -66,12 +68,14 @@ void loop() {
   Serial.print(rhReadWrite(1, port0RH00ZeroOffsetV, port0RH00Slope));
   Serial.print(" ");
 
-  Serial.print(rhReadWrite(2, port0RH10ZeroOffsetV, port0RH10Slope));
+  Serial.print(rhReadWrite(2, port0RH20ZeroOffsetV, port0RH20Slope));
   Serial.print(" ");
 
-  Serial.print(rhReadWrite(3, port0RH12ZeroOffsetV, port0RH12Slope));
+  Serial.print(rhReadWrite(3, port0RH22ZeroOffsetV, port0RH22Slope));
 
-  delay(100);
+  Serial.println(" ");
+  
+  delay(10);
 
 }
 

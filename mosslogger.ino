@@ -3,6 +3,13 @@
 // From HIH-4000 series sensor datasheet: VOUT=(VSUPPLY)(0.0062(sensor RH)+0.16), typical at25 ºC
 // Supplied voltage at ADCs GND-VDD is 4V86 (w/ handheld multimeter)
 
+//#define DEBUG
+#include <DebugMacros.h> // Example: DEBUG_PRINTLN(x,HEX);
+
+#define PLOTTER
+#include <PlotterMacros.h>
+
+
 
 #include <SPI.h>
 #include <SdFat.h>
@@ -171,22 +178,22 @@ int8_t thisMonth, thisDay, thisHour, thisMinute, thisSecond;
 
 void tcascan() {
 
-  //Serial.println("\nTCAScanner ready!");
+  DPRINTLN("\nTCAScanner ready!");
 
   for (uint8_t t = 0; t < 8; t++) {
     tcaselect(t);
-    //Serial.print("TCA Port #"); Serial.println(t);
+    DPRINT("TCA Port #"); DPRINTLN(t);
 
     for (uint8_t addr = 0; addr <= 127; addr++) {
       if (addr == TCAADDR) continue;
 
       uint8_t data;
       if (! twi_writeTo(addr, &data, 0, 1, 1)) {
-        //Serial.print("Found I2C 0x");  Serial.println(addr, HEX);
+        DPRINT("Found I2C 0x");  DPRINTLN(addr, HEX);
       }
     }
   }
-  //Serial.println("\nScanning done...");
+  DPRINTLN("\nScanning done...");
 }
 
 //------------------------------------------------------------------------------
@@ -241,12 +248,12 @@ void initializeRTC() {
   tcaselect(I2CPORT2);
 
   if (! rtc.begin()) {
-    //Serial.println("Couldn't find RTC");
+    DPRINTLN("Couldn't find RTC");
     while (1);
   }
 
   if (rtc.lostPower()) {
-    //Serial.println("RTC lost power, lets set the time!");
+    DPRINTLN("RTC lost power, lets set the time!");
     // following line sets the RTC to the date & time this sketch was compiled
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
@@ -264,7 +271,7 @@ void getDateAndTime() {
 
   tcaselect(I2CPORT2);
 
-  //Serial.println("begin getDateAndTime()");
+  DPRINTLN("begin getDateAndTime()");
   DateTime now = rtc.now();
 
   thisYear = now.year();//Controllino_GetYear();
@@ -295,7 +302,7 @@ void lcdPrintTime() {
 //------------------------------------------------------------------------------
 
 void measurements() {
-  //  Serial.println("begin measurements()");
+  DPRINTLN("begin measurements()");
 
   wdt_reset();
 
@@ -575,8 +582,16 @@ void measurements() {
   port1measurementRoundTemperatureC32 = steinhartCalculation(port1measurementRoundAverage32);
   port1measurementRoundTemperatureC33 = steinhartCalculation(port1measurementRoundAverage33);
 
-  //Serial.print("measurementRoundCounter:\t");
-  //Serial.println(measurementRoundCounter);
+  DPRINT("measurementRoundCounter:\t");
+  DPRINTLN(measurementRoundCounter);
+
+  PLPRINT(port0measurementRoundTrueRH00);
+  PLPRINTNEXT(port0measurementRoundTrueRH02);
+  PLPRINTNEXT(port0measurementRoundTrueRH10);
+  PLPRINTNEXT(port0measurementRoundTrueRH12);
+  PLPRINTNEXT(port0measurementRoundTrueRH20);
+  PLPRINTNEXT(port0measurementRoundTrueRH22);
+  PLPRINT("\t");
 
 }
 
@@ -622,9 +637,13 @@ void sd1write() {
 
   wdt_reset();
 
+  DPRINTLN("begin sd1write()");
+
   for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
+
+    DPRINTLN("sd1write(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1208,13 +1227,16 @@ void sd1write() {
 //------------------------------------------------------------------------------
 
 void sd2write() {
-  //  Serial.println("begin sd2write()");
-
+  
   wdt_reset();
+
+  DPRINTLN("begin sd2write()");
 
   for (; !sd2.begin(SD2_CS) ;) {
 
     wdt_reset();
+
+    DPRINTLN("sd2write(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -1802,9 +1824,13 @@ void sd1writeHeader() {
 
   wdt_reset();
 
+  DPRINTLN("begin sd1writeHeader()");
+
   for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
+
+    DPRINTLN("sd1writeHeader(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1842,9 +1868,13 @@ void sd2writeHeader() {
 
   wdt_reset();
 
+  DPRINTLN("begin sd2writeHeader()");
+
   for (; !sd2.begin(SD2_CS);) {
 
     wdt_reset();
+
+    DPRINTLN("sd2writeHeader(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -1881,10 +1911,14 @@ void sd2writeHeader() {
 void sd1writeLog() {
 
   wdt_reset();
+  
+  DPRINTLN("begin sd1writeLog()");
 
   for (; !sd1.begin(SD1_CS);) {
 
     wdt_reset();
+
+    DPRINTLN("sd1writeLog(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1930,9 +1964,13 @@ void sd2writeLog() {
 
   wdt_reset();
 
+  DPRINTLN("Begin sd2writeLog()");
+
   for (; !sd2.begin(SD2_CS);) {
 
     wdt_reset();
+
+    DPRINTLN("sd2writeLog(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -2069,16 +2107,14 @@ void setup() {
 
   wdt_disable();  // Disable the watchdog and wait for more than 2 seconds
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
-  wdt_enable(WDTO_2S);
+  wdt_enable(WDTO_8S);
 
   Wire.begin();
 
-  //Serial.begin(115200);
+  SERIALBEGIN(9600);
+  
+  DPRINTLN("begin setup()");
 
-  //Wait for USB Serial
-  //while (!Serial);
-  //
-  //    Serial.println(F("setup() begin"));
   lcd.begin(20, 4);
 
   clearRoundVariables();
@@ -2092,8 +2128,6 @@ void setup() {
   pinMode(port1ads3Relay, OUTPUT);
 
   digitalWrite(SD2_CS, HIGH);
-
-  //Controllino_RTC_init();
 
   tcascan();
 
