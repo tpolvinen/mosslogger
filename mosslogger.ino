@@ -131,10 +131,15 @@ float adcRange = 25970.8; //manually calibrated to 10 kOhm resistors = 25 oC (32
 
 float port0RH00ZeroOffsetV = 0.872005, port0RH00Slope = 0.029127021; // on-component-label: 177
 float port0RH02ZeroOffsetV = 0.881115, port0RH02Slope = 0.029501451; // on-component-label: 47
-float port0RH10ZeroOffsetV = 0.874403, port0RH10Slope = 0.029414096; // on-component-label: 168
-float port0RH12ZeroOffsetV = 0.865772, port0RH12Slope = 0.031654803; // on-component-label: 174
+float port0RH10ZeroOffsetV = 0.878538, port0RH10Slope = 0.029409496; // on-component-label: 374
+float port0RH12ZeroOffsetV = 0.867744, port0RH12Slope = 0.029454593; // on-component-label: 377
 float port0RH20ZeroOffsetV = 0.866775, port0RH20Slope = 0.029222144; // on-component-label: 180
 float port0RH22ZeroOffsetV = 0.872487, port0RH22Slope = 0.029126063; // on-component-label: 170
+
+//float port0RH12ZeroOffsetV = 0.865772, port0RH12Slope = 0.031654803; // on-component-label: 174 - RH calculation produces about 1% lower result at RH% 18-21, widening upwards
+//float port0RH10ZeroOffsetV = 0.874403, port0RH10Slope = 0.029414096; // on-component-label: 168 - StDev average about 8.2 while other RH sensors have 1.9, 2.0, 2.5, 3.0 and 3.2
+
+
 
 float port0measurementRoundTrueRH00 = 0.0, port0measurementRoundTemperatureC01 = 0.0, port0measurementRoundTrueRH02 = 0.0, port0measurementRoundTemperatureC03 = 0.0;
 float port0measurementRoundTrueRH10 = 0.0, port0measurementRoundTemperatureC11 = 0.0, port0measurementRoundTrueRH12 = 0.0, port0measurementRoundTemperatureC13 = 0.0;
@@ -603,9 +608,9 @@ float rhCalculation(float average, float temperature, float zeroOffsetV, float r
   float sensorRH = 0.0;
   float trueRH = 0.0;
 
-  voltage = (average * 0.1875) / 1000;
+  voltage = (average * 0.1875) / 1000; // factor 0.1875 is coming from max. measurable voltage -see gain settings- divided by 15 bit resolution
   sensorRH = (voltage - zeroOffsetV) / rhSlope;
-  trueRH = sensorRH / (1.0546 - (0.00216 * temperature));
+  trueRH = sensorRH / (1.0546 - (0.00216 * temperature)); // the magic numbers come from sensor data sheet formula
 
   return trueRH;
 }
