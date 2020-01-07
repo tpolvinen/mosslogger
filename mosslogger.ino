@@ -7,7 +7,7 @@
 #include <DebugMacros.h> // Example: DEBUG_PRINTLN(x,HEX);
 
 //#define PLOTTER
-#include <PlotterMacros.h>
+//#include <PlotterMacros.h>
 
 
 
@@ -590,13 +590,13 @@ void measurements() {
   DPRINT("measurementRoundCounter:\t");
   DPRINTLN(measurementRoundCounter);
 
-  PLPRINT(port0measurementRoundTrueRH00);
-  PLPRINTNEXT(port0measurementRoundTrueRH02);
-  PLPRINTNEXT(port0measurementRoundTrueRH10);
-  PLPRINTNEXT(port0measurementRoundTrueRH12);
-  PLPRINTNEXT(port0measurementRoundTrueRH20);
-  PLPRINTNEXT(port0measurementRoundTrueRH22);
-  PLPRINT("\t");
+//  PLPRINT(port0measurementRoundTrueRH00);
+//  PLPRINTNEXT(port0measurementRoundTrueRH02);
+//  PLPRINTNEXT(port0measurementRoundTrueRH10);
+//  PLPRINTNEXT(port0measurementRoundTrueRH12);
+//  PLPRINTNEXT(port0measurementRoundTrueRH20);
+//  PLPRINTNEXT(port0measurementRoundTrueRH22);
+//  PLPRINT("\t");
 
 }
 
@@ -2114,11 +2114,14 @@ void setup() {
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_8S);
 
-  Wire.begin();
-
-  SERIALBEGIN(9600);
+  SERIALBEGIN(115200);
+  while (!Serial) {
+    delay(10);
+  }
   
   DPRINTLN("begin setup()");
+
+  Wire.begin();
 
   lcd.begin(20, 4);
 
