@@ -3,13 +3,8 @@
 // From HIH-4000 series sensor datasheet: VOUT=(VSUPPLY)(0.0062(sensor RH)+0.16), typical at25 ºC
 // Supplied voltage at ADCs GND-VDD is 4V86 (w/ handheld multimeter)
 
-//#define DEBUG
+#define DEBUG
 #include <DebugMacros.h> // Example: DEBUG_PRINTLN(x,HEX);
-
-//#define PLOTTER
-//#include <PlotterMacros.h>
-
-
 
 #include <SPI.h>
 #include <SdFat.h>
@@ -69,12 +64,12 @@ const unsigned long relayTimeBuffer = 1000; // in milliseconds, interval between
 //------------------------------------------------------------------------------
 
 unsigned long startShutDownPeriod = 0; // to mark the start of current shutDownPeriod
-const unsigned long shutDownPeriod = 5000; // in milliseconds, how long to power off ADCs between measurement periods
+const unsigned long shutDownPeriod = 600000;//300000; // in milliseconds, how long to power off ADCs between measurement periods
 
 unsigned long startMeasurementPeriod = 0; // to mark the start of current measurementPeriod
-const unsigned long measurementPeriod = 10000; // in milliseconds, how long to keep measuring, looping measurement rounds
+const unsigned long measurementPeriod = 100000; // in milliseconds, how long to keep measuring, looping measurement rounds
 
-const unsigned long measurementRoundPeriod = 1000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
+const unsigned long measurementRoundPeriod = 1000;//60000; //  in milliseconds, how long to loop through ADCs reading values in, before calculating the averages
 
 //------------------------------------------------------------------------------
 
@@ -184,22 +179,22 @@ int8_t thisMonth, thisDay, thisHour, thisMinute, thisSecond;
 
 void tcascan() {
 
-  DPRINTLN("\nTCAScanner ready!");
+  //DPRINTLN("\nTCAScanner ready!");
 
   for (uint8_t t = 0; t < 8; t++) {
     tcaselect(t);
-    DPRINT("TCA Port #"); DPRINTLN(t);
+    //DPRINT("TCA Port #"); DPRINTLN(t);
 
     for (uint8_t addr = 0; addr <= 127; addr++) {
       if (addr == TCAADDR) continue;
 
       uint8_t data;
       if (! twi_writeTo(addr, &data, 0, 1, 1)) {
-        DPRINT("Found I2C 0x");  DPRINTLN(addr, HEX);
+        //DPRINT("Found I2C 0x");  DPRINTLN(addr, HEX);
       }
     }
   }
-  DPRINTLN("\nScanning done...");
+  //DPRINTLN("\nScanning done...");
 }
 
 //------------------------------------------------------------------------------
@@ -254,12 +249,12 @@ void initializeRTC() {
   tcaselect(I2CPORT2);
 
   if (! rtc.begin()) {
-    DPRINTLN("Couldn't find RTC");
+    //DPRINTLN("Couldn't find RTC");
     while (1);
   }
 
   if (rtc.lostPower()) {
-    DPRINTLN("RTC lost power, lets set the time!");
+    //DPRINTLN("RTC lost power, lets set the time!");
     // following line sets the RTC to the date & time this sketch was compiled
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
@@ -277,7 +272,7 @@ void getDateAndTime() {
 
   tcaselect(I2CPORT2);
 
-  DPRINTLN("begin getDateAndTime()");
+  //DPRINTLN("begin getDateAndTime()");
   DateTime now = rtc.now();
 
   thisYear = now.year();//Controllino_GetYear();
@@ -308,7 +303,7 @@ void lcdPrintTime() {
 //------------------------------------------------------------------------------
 
 void measurements() {
-  DPRINTLN("begin measurements()");
+  //DPRINTLN("begin measurements()");
 
   wdt_reset();
 
@@ -588,16 +583,48 @@ void measurements() {
   port1measurementRoundTemperatureC32 = steinhartCalculation(port1measurementRoundAverage32);
   port1measurementRoundTemperatureC33 = steinhartCalculation(port1measurementRoundAverage33);
 
-  DPRINT("measurementRoundCounter:\t");
-  DPRINTLN(measurementRoundCounter);
+  //DPRINT("measurementRoundCounter:\t");
+  //DPRINTLN(measurementRoundCounter);
 
-//  PLPRINT(port0measurementRoundTrueRH00);
-//  PLPRINTNEXT(port0measurementRoundTrueRH02);
-//  PLPRINTNEXT(port0measurementRoundTrueRH10);
-//  PLPRINTNEXT(port0measurementRoundTrueRH12);
-//  PLPRINTNEXT(port0measurementRoundTrueRH20);
-//  PLPRINTNEXT(port0measurementRoundTrueRH22);
-//  PLPRINT("\t");
+  // for temperature calibration-ish check:
+  DPRINT(port0measurementRoundTemperatureC01); DPRINT(",");
+  DPRINT(port0measurementRoundTemperatureC03); DPRINT(",");
+  DPRINT(port0measurementRoundTemperatureC11); DPRINT(",");
+  DPRINT(port0measurementRoundTemperatureC13); DPRINT(",");
+  DPRINT(port0measurementRoundTemperatureC21); DPRINT(",");
+//  DPRINT(port0measurementRoundTemperatureC23); DPRINT(",");
+  
+  DPRINT(port1measurementRoundTemperatureC00); DPRINT(",");
+  DPRINT(port1measurementRoundTemperatureC01); DPRINT(",");
+  DPRINT(port1measurementRoundTemperatureC02); DPRINT(",");
+  DPRINT(port1measurementRoundTemperatureC03); DPRINT(",");
+
+  DPRINT(port1measurementRoundTemperatureC10); DPRINT(",");
+  DPRINT(port1measurementRoundTemperatureC11); DPRINT(",");
+  DPRINT(port1measurementRoundTemperatureC12); DPRINT(",");
+  DPRINTLN(port1measurementRoundTemperatureC13);
+
+  //  DPRINT(port0measurementRoundTrueRH00); DPRINT(",");
+  //  DPRINT(port0measurementRoundTrueRH02); DPRINT(",");
+  //  DPRINT(port0measurementRoundTrueRH10); DPRINT(",");
+  //  DPRINT(port0measurementRoundTrueRH12); DPRINT(",");
+  //  DPRINTLN(port0measurementRoundTrueRH20);//Serial.print(",");
+  //DPRINT(port0measurementRoundTrueRH22);
+
+  //  Serial.print(port0measurementRoundTrueRH00);Serial.print(",");
+  //  Serial.print(port0measurementRoundTrueRH02);Serial.print(",");
+  //  Serial.print(port0measurementRoundTrueRH10);Serial.print(",");
+  //  Serial.print(port0measurementRoundTrueRH12);Serial.print(",");
+  //  Serial.println(port0measurementRoundTrueRH20);//Serial.print(",");
+  //Serial.println(port0measurementRoundTrueRH22);
+
+  //  PLPRINT(port0measurementRoundTrueRH00);
+  //  PLPRINTNEXT(port0measurementRoundTrueRH02);
+  //  PLPRINTNEXT(port0measurementRoundTrueRH10);
+  //  PLPRINTNEXT(port0measurementRoundTrueRH12);
+  //  PLPRINTNEXT(port0measurementRoundTrueRH20);
+  //  PLPRINTNEXT(port0measurementRoundTrueRH22);
+  //  PLPRINT("\t");
 
 }
 
@@ -643,13 +670,13 @@ void sd1write() {
 
   wdt_reset();
 
-  DPRINTLN("begin sd1write()");
+  //DPRINTLN("begin sd1write()");
 
   for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
 
-    DPRINTLN("sd1write(): SD1 not found!");
+    //DPRINTLN("sd1write(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1233,16 +1260,16 @@ void sd1write() {
 //------------------------------------------------------------------------------
 
 void sd2write() {
-  
+
   wdt_reset();
 
-  DPRINTLN("begin sd2write()");
+  //DPRINTLN("begin sd2write()");
 
   for (; !sd2.begin(SD2_CS) ;) {
 
     wdt_reset();
 
-    DPRINTLN("sd2write(): SD2 not found!");
+    //DPRINTLN("sd2write(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -1830,13 +1857,13 @@ void sd1writeHeader() {
 
   wdt_reset();
 
-  DPRINTLN("begin sd1writeHeader()");
+  //DPRINTLN("begin sd1writeHeader()");
 
   for (; !sd1.begin(SD1_CS) ;) {
 
     wdt_reset();
 
-    DPRINTLN("sd1writeHeader(): SD1 not found!");
+    //DPRINTLN("sd1writeHeader(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1874,13 +1901,13 @@ void sd2writeHeader() {
 
   wdt_reset();
 
-  DPRINTLN("begin sd2writeHeader()");
+  //DPRINTLN("begin sd2writeHeader()");
 
   for (; !sd2.begin(SD2_CS);) {
 
     wdt_reset();
 
-    DPRINTLN("sd2writeHeader(): SD2 not found!");
+    //DPRINTLN("sd2writeHeader(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -1917,14 +1944,14 @@ void sd2writeHeader() {
 void sd1writeLog() {
 
   wdt_reset();
-  
-  DPRINTLN("begin sd1writeLog()");
+
+  //DPRINTLN("begin sd1writeLog()");
 
   for (; !sd1.begin(SD1_CS);) {
 
     wdt_reset();
 
-    DPRINTLN("sd1writeLog(): SD1 not found!");
+    //DPRINTLN("sd1writeLog(): SD1 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd1.begin(SD1_CS);
@@ -1970,13 +1997,13 @@ void sd2writeLog() {
 
   wdt_reset();
 
-  DPRINTLN("Begin sd2writeLog()");
+  //DPRINTLN("Begin sd2writeLog()");
 
   for (; !sd2.begin(SD2_CS);) {
 
     wdt_reset();
 
-    DPRINTLN("sd2writeLog(): SD2 not found!");
+    //DPRINTLN("sd2writeLog(): SD2 not found!");
 
     if (millis() > startsdCardInitializeDelay + sdCardInitializeDelay) {
       sd2.begin(SD2_CS);
@@ -2115,12 +2142,13 @@ void setup() {
   delay(3000);  // With this the Arduino doesn't keep resetting infinitely in case of wrong configuration
   wdt_enable(WDTO_8S);
 
-  SERIALBEGIN(115200);
+  //SERIALBEGIN(115200);
+  Serial.begin(115200);
   while (!Serial) {
     delay(10);
   }
-  
-  DPRINTLN("begin setup()");
+
+  //DPRINTLN("begin setup()");
 
   Wire.begin();
 
